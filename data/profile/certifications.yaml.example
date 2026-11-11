@@ -1,0 +1,16 @@
+certifications:
+
+  - name : Certificate 1 
+    provider : Coursera
+    certificate_link : https://drive.google.com/file/d/certificate-1
+    tags : 
+      - skill-1
+      - skill-2
+  
+  - name : Certificate 2
+    provider : Udemy
+    certificate_link : https://drive.google.com/file/d/certificate-2
+    tags : 
+      - skill-1
+      - skill-2 
+      - skill-3

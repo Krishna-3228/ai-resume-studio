@@ -1,0 +1,11 @@
+languages:
+  - C
+  - C++
+  - Python
+
+frameworks:
+  - React
+  - Express
+  - Flask
+  - FastAPI
+

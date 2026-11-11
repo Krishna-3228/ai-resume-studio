@@ -1,0 +1,23 @@
+projects :
+
+  - name: Project 1
+    tech_stack:
+      - React
+      - Javascript
+      - NodeJS
+
+    github_link : https://github.com/username/project1
+    live_demo_link : https://project1-live-demo.com
+    description : 
+      - 
+      - 
+  
+  - name : Project 2
+    tech_stack :
+      - Python
+      - Pytorch
+
+    github_link : https://github.com/username/project2
+    description : 
+      - 
+      -

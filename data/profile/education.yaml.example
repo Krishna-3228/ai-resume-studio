@@ -1,0 +1,22 @@
+education:
+
+  - type: graduation
+    institution: ABC University
+    address: Vasant Vihar, Delhi
+    degree: B.Tech CSE
+    batch: 2023-2027
+    cgpa: 8.2/10
+
+  - type: 12th
+    institution: XYZ Public School
+    address: Vasant Vihar, Delhi
+    board: CBSE
+    batch: 2023
+    percentage: 92%
+
+  - type: 10th
+    institution: XYZ Public School
+    address: Vasant Vihar, Delhi
+    board: CBSE
+    batch: 2021
+    percentage: 86%
