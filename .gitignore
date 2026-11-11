@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# User profile data
+data/profile/*.yaml
+data/profile/*.yml
+
+# Generated resume projects
+data/projects/*
+
+# LaTeX generated files
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Generated PDFs
+*.pdf
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
