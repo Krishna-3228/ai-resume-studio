@@ -7,12 +7,21 @@ from sqlalchemy.orm import Session
 
 from backend.services.project_service import ProjectService
 from backend.services.project_storage import ProjectStorage
-
+from backend.services.latex_diagnostic_parser import (
+    CompilationDiagnostic,
+    LatexDiagnosticParser,
+)
 
 class CompilationError(Exception):
-    def __init__(self, message: str, output: str = ""):
+    def __init__(
+        self,
+        message: str,
+        output: str = "",
+        diagnostics: list[CompilationDiagnostic] | None = None,
+    ):
         super().__init__(message)
         self.output = output
+        self.diagnostics = diagnostics or []
 
 
 class CompilationService:
@@ -85,9 +94,22 @@ class CompilationService:
             compiled_pdf = build_dir / "resume.pdf"
 
             if result.returncode != 0 or not compiled_pdf.is_file():
+                log_path = build_dir / "resume.log"
+
+                diagnostics = []
+
+                if log_path.is_file():
+                    log_content = log_path.read_text(
+                        encoding="utf-8",
+                        errors="replace",
+                    )
+
+                    diagnostics = LatexDiagnosticParser.parse(log_content)
+
                 raise CompilationError(
                     "LaTeX compilation failed",
                     output,
+                    diagnostics,
                 )
 
             # Replace the previous PDF only after successful compilation.

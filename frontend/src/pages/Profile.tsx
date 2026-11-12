@@ -43,6 +43,7 @@ export default function Profile() {
             setSuccess(null);
 
             try {
+                if (!selectedSection) return;
                 const data = await profileService.getSection(selectedSection);
                 setContent(data.content);
                 setSavedContent(data.content);

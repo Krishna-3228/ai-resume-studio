@@ -18,6 +18,7 @@ dist/
 # User profile data
 data/profile/*.yaml
 data/profile/*.yml
+data/*.db
 
 # Generated resume projects
 data/projects/*
@@ -30,6 +31,7 @@ data/projects/*
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+*.tex
 
 # Generated PDFs
 *.pdf

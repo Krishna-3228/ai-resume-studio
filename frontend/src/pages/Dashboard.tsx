@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileText, Loader2, Search, Plus, X, MoreVertical } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import {
     projectService,
@@ -7,6 +8,7 @@ import {
 } from "../services/projectService";
 
 export default function Dashboard() {
+    const navigate = useNavigate();
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -244,7 +246,10 @@ export default function Dashboard() {
                                     key={project.id}
                                     className="border-b border-gray-200 transition hover:bg-gray-100"
                                 >
-                                    <td className="px-4 py-5">
+                                    <td 
+                                        className="px-4 py-5" 
+                                        onClick={() => navigate(`/projects/${project.id}`)}
+                                    >
                                         <div className="flex items-center gap-3">
                                             <FileText
                                                 size={19}

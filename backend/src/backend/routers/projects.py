@@ -130,7 +130,10 @@ def get_project_latex(
         raise HTTPException(status_code=404, detail=str(error))
 
 
-@router.put("/{project_id}/latex")
+@router.put(
+    "/{project_id}/latex",
+    response_model=LatexResponse,
+)
 def save_project_latex(
     project_id: str,
     body: LatexUpdate,
@@ -140,11 +143,12 @@ def save_project_latex(
     service = DocumentService(db, storage)
 
     try:
-        service.save_latex(project_id, body.content)
-        return {
-            "message": "LaTeX saved successfully",
-            "project_id": project_id,
-        }
+        content = service.save_latex(project_id, body.content)
+
+        return LatexResponse(
+            project_id=project_id,
+            content=body.content,
+        )
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error))
 
@@ -168,6 +172,14 @@ def compile_project(
             detail={
                 "message": str(error),
                 "output": error.output,
+                "diagnostics": [
+                    {
+                        "type": diagnostic.type,
+                        "message": diagnostic.message,
+                        "line": diagnostic.line,
+                    }
+                    for diagnostic in error.diagnostics
+                ],
             },
         )
 
