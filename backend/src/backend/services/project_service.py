@@ -1,67 +1,94 @@
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-from uuid import uuid4
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from backend.models import Project
+from datetime import datetime, timezone
 
 class ProjectService:
-    def __init__(self, projects_dir: Path):
-        self.projects_dir = Path(projects_dir).resolve()
-        self.projects_dir.mkdir(parents=True, exist_ok=True)
 
-    def create_project(self, title: str) -> dict:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create_project(
+        self,
+        title: str,
+        description: str | None = None,
+    ) -> Project:
         title = title.strip()
 
         if not title:
             raise ValueError("Project title cannot be empty")
 
-        project_id = str(uuid4())
-        project_dir = self.projects_dir / project_id
+        project = Project(
+            title=title,
+            description=description,
+        )
 
-        project_dir.mkdir(parents=True)
-
-        project = {
-            "id": project_id,
-            "title": title,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        try:
-            metadata_path = project_dir / "project.json"
-
-            with metadata_path.open("w", encoding="utf-8") as file:
-                json.dump(project, file, indent=4)
-
-            (project_dir / "resume.tex").write_text(
-                "",
-                encoding="utf-8",
-            )
-
-            (project_dir / "output").mkdir()
-
-        except Exception:
-            import shutil
-            shutil.rmtree(project_dir, ignore_errors=True)
-            raise
+        self.db.add(project)
+        self.db.commit()
+        self.db.refresh(project)
 
         return project
 
-    def list_projects(self) -> list[dict]:
-        projects = []
-
-        for project_dir in self.projects_dir.iterdir():
-            metadata_path = project_dir / "project.json"
-
-            if not project_dir.is_dir() or not metadata_path.exists():
-                continue
-
-            with metadata_path.open(encoding="utf-8") as file:
-                projects.append(json.load(file))
-
-        return sorted(
-            projects,
-            key=lambda project: project["updated_at"],
-            reverse=True,
+    def list_projects(self) -> list[Project]:
+        statement = (
+            select(Project)
+            .order_by(Project.updated_at.desc())
         )
+
+        return list(self.db.scalars(statement).all())
+
+    def get_project(self, project_id: str) -> Project | None:
+        return self.db.get(Project, project_id)
+
+    def update_project(
+        self,
+        project_id: str,
+        title: str | None = None,
+        description: str | None = None,
+        update_description: bool = False,
+    ) -> Project | None:
+        project = self.get_project(project_id)
+
+        if project is None:
+            return None
+
+        if title is not None:
+            title = title.strip()
+
+            if not title:
+                raise ValueError("Project title cannot be empty")
+
+            project.title = title
+
+        if description is not None or update_description:
+            project.description = description
+
+        self.db.commit()
+        self.db.refresh(project)
+
+        return project
+
+    def delete_project(self, project_id: str) -> bool:
+        project = self.get_project(project_id)
+
+        if project is None:
+            return False
+
+        self.db.delete(project)
+        self.db.commit()
+
+        return True
+
+    def update_document_timestamp(self, project_id: str) -> bool:
+        project = self.get_project(project_id)
+
+        if project is None:
+            return False
+
+        project.updated_at = datetime.now(timezone.utc)
+
+        self.db.commit()
+        self.db.refresh(project)
+
+        return True

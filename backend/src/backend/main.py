@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backend.services.profile_service import ProfileService
+from backend.routers.projects import router as projects_router
 
 
 # Resolve the repository root independently of the working directory.
@@ -32,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(projects_router)
 
 class ProfileUpdate(BaseModel):
     content: str
