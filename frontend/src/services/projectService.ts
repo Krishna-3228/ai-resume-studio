@@ -77,6 +77,11 @@ export const projectService = {
 
     async getPdf(projectId: string): Promise<Blob> {
         const response = await api.get(`/projects/${projectId}/pdf`, {
+            params: { t: Date.now() },
+            headers: {
+                "Cache-Control": "no-cache",
+                Pragma: "no-cache",
+            },
             responseType: "blob",
         });
 
