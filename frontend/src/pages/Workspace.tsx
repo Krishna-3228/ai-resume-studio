@@ -4,10 +4,12 @@ import Editor from "@monaco-editor/react";
 import { projectService, type Project } from "../services/projectService";
 import { chatService, streamChat, type ChatMessage, type ChatStatus } from "../services/chatService";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { Sparkles, Send, Trash2, Wrench, AlertCircle, Bot, User } from "lucide-react";
+import { Sparkles, Send, Trash2, Wrench, AlertCircle, Bot, User, ArrowLeft, Download, Save, Play, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import axios from "axios";
+import { configureStudioTheme } from "../utils/monacoTheme";
+import { toast } from "../components/toast";
 
 function cleanMessageContent(content: string): string {
     if (!content) return "";
@@ -155,7 +157,7 @@ function Workspace() {
         };
 
         loadWorkspace();
-    }, [projectId]);
+    }, [projectId, loadPdf]);
 
     useEffect(() => {
         return () => {
@@ -183,8 +185,8 @@ function Workspace() {
         if (!query || !projectId || isChatThinking) return;
 
         setInputMessage("");
-        const userMsgId = `user-${Date.now()}`;
-        const assistantMsgId = `assistant-${Date.now()}`;
+        const userMsgId = `user-${crypto.randomUUID()}`;
+        const assistantMsgId = `assistant-${crypto.randomUUID()}`;
 
         setChatMessages((prev) => [
             ...prev,
@@ -219,7 +221,7 @@ function Workspace() {
                         )
                     );
                 },
-                (_toolName) => {
+                () => {
                     setActiveTool(null);
                 },
                 (fullReply) => {
@@ -273,8 +275,10 @@ function Workspace() {
         try {
             await chatService.clearHistory(projectId);
             setChatMessages([]);
+            toast.deleted("Chat History", "AI conversation history has been cleared.");
         } catch (err) {
             console.error("Failed to clear chat:", err);
+            toast.error("Clear Failed", "Failed to clear conversation history.");
         }
     };
 
@@ -288,12 +292,29 @@ function Workspace() {
             const response = await projectService.saveLatex(projectId, latex);
 
             setSavedLatex(response.content);
+            toast.saved("LaTeX Source", `Saved resume.tex for "${project?.title || "Project"}".`);
         } catch {
             setError("Failed to save LaTeX source.");
+            toast.error("Save Failed", "Failed to save LaTeX source to disk.");
         } finally {
             setSaving(false);
         }
     };
+
+    // Keyboard shortcut for Ctrl+S / Cmd+S
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+                event.preventDefault();
+                if (isDirty && !saving && !loading && !isAiWriting) {
+                    handleSave();
+                }
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isDirty, saving, loading, isAiWriting, projectId, latex, project?.title]);
 
     // Real-time EventSource listener for MCP and AI events
     useEffect(() => {
@@ -315,9 +336,12 @@ function Workspace() {
                         setLatex(payload.content);
                         setSavedLatex(payload.content);
                     }
+                    toast.updated("LaTeX Source", "AI assistant updated resume.tex.");
                 } else if (eventType === "latex_update_failed" || eventType === "ai_writing_failed") {
                     setIsAiWriting(false);
-                    setError(payload.error || "AI LaTeX edit failed.");
+                    const errMsg = payload.error || "AI LaTeX edit failed.";
+                    setError(errMsg);
+                    toast.error("AI Edit Failed", errMsg);
                 } else if (eventType === "pdf_compile_started" || eventType === "compile_started") {
                     setCompiling(true);
                     setCompileError(null);
@@ -327,9 +351,12 @@ function Workspace() {
                     setDiagnostics([]);
                     applyDiagnostics([]);
                     loadPdf();
+                    toast.compiled("Resume PDF", "Recompiled successfully via AI agent.");
                 } else if (eventType === "pdf_compile_failed" || eventType === "compile_failed") {
                     setCompiling(false);
-                    setCompileError(payload.error || "AI compilation failed.");
+                    const errMsg = payload.error || "AI compilation failed.";
+                    setCompileError(errMsg);
+                    toast.error("Compilation Failed", errMsg);
                 }
             } catch (err) {
                 console.error("Error processing SSE event:", err);
@@ -354,37 +381,37 @@ function Workspace() {
             setDiagnostics([]);
             applyDiagnostics([]);
 
-            // Save the latest editor content before compilation.
+            // Save latest editor content before compilation
             if (isDirty) {
                 const response = await projectService.saveLatex(projectId, latex);
                 setSavedLatex(response.content);
             }
 
-            // Compile the saved source.
+            // Compile the saved source
             await projectService.compileProject(projectId);
 
-            // Compilation succeeded: clear old diagnostics and refresh PDF.
+            // Clear old diagnostics and reload preview
             setDiagnostics([]);
             applyDiagnostics([]);
             await loadPdf();
+            toast.compiled("LaTeX Resume", "PDF compiled and preview updated.");
         } catch (err: unknown) {
+            let errorMsg = "Compilation failed. Check your LaTeX source.";
             if (axios.isAxiosError(err)) {
                 const detail = err.response?.data?.detail;
 
                 if (detail && Array.isArray(detail.diagnostics)) {
-                    const receivedDiagnostics =
-                        detail.diagnostics as CompilationDiagnostic[];
-
+                    const receivedDiagnostics = detail.diagnostics as CompilationDiagnostic[];
                     setDiagnostics(receivedDiagnostics);
                     applyDiagnostics(receivedDiagnostics);
                 }
 
-                setCompileError(
-                    detail?.message ?? "Compilation failed. Check your LaTeX source."
-                );
+                errorMsg = detail?.message ?? "Compilation failed. Check your LaTeX source.";
+                setCompileError(errorMsg);
             } else {
-                setCompileError("Compilation failed. Check your LaTeX source.");
+                setCompileError(errorMsg);
             }
+            toast.error("Compilation Failed", errorMsg);
         } finally {
             setCompiling(false);
         }
@@ -401,73 +428,114 @@ function Workspace() {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-950 text-gray-400">
-                Loading project...
+            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-[#000407] text-[#bfecf3]">
+                <Loader2 size={28} className="animate-spin text-[#ff7d00]" />
+                <span className="text-sm font-bold text-white">Opening workspace...</span>
             </div>
         );
     }
 
     if (error && !project) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 bg-gray-950 text-gray-400">
-                <p>{error}</p>
-                <button onClick={() => navigate("/")}>Return to Dashboard</button>
+            <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#000407] text-[#ffecd1] p-6 text-center">
+                <div className="rounded-2xl border-2 border-[#78290f] bg-[#000c15] p-6 max-w-md shadow-2xl">
+                    <p className="text-sm text-[#ee9679] font-semibold">{error}</p>
+                    <button
+                        onClick={() => navigate("/")}
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] px-5 py-2 text-xs font-bold text-[#000407] transition-all"
+                    >
+                        <ArrowLeft size={14} />
+                        Return to Dashboard
+                    </button>
+                </div>
             </div>
         );
     }
 
-
-
     return (
-        <div className="flex h-screen flex-col bg-gray-950 text-gray-100">
-            {/* Toolbar */}
-            <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-800 px-5">
+        <div className="flex h-screen flex-col bg-[#000407] text-[#ffecd1] selection:bg-[#ff7d00]/30 selection:text-[#ff9633]">
+            {/* Top Toolbar */}
+            <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#15616d]/40 bg-[#00080e] px-5 z-10">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => navigate("/")}
-                        className="text-sm text-gray-400 hover:text-white"
+                        className="flex items-center gap-1.5 text-xs font-bold text-[#bfecf3] hover:text-[#ff7d00] transition-colors"
                     >
-                        ← Dashboard
+                        <ArrowLeft size={14} className="stroke-[2.5]" />
+                        <span>Dashboard</span>
                     </button>
 
-                    <div className="h-5 border-l border-gray-700" />
+                    <div className="h-4 border-l border-[#15616d]/60" />
 
-                    <h1 className="text-sm font-semibold">{project?.title ?? "Resume Workspace"}</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-sm font-extrabold text-white tracking-tight">
+                            {project?.title ?? "Resume Workspace"}
+                        </h1>
+                        <span className="rounded-md bg-[#001524] border border-[#15616d] px-2 py-0.5 text-[10px] font-mono text-[#3ec5da] font-semibold">
+                            LaTeX
+                        </span>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                     {error && project && (
-                        <span className="text-xs text-red-400">{error}</span>
+                        <span className="text-xs text-[#ee9679] bg-[#78290f]/30 px-2.5 py-1 rounded-lg border border-[#78290f] font-medium">
+                            {error}
+                        </span>
                     )}
+
                     <button
                         onClick={() => {
                             if (!pdfUrl) return;
 
+                            const fileName = `${project?.title || "resume"}.pdf`;
                             const link = document.createElement("a");
                             link.href = pdfUrl;
-                            link.download = `${project?.title || "resume"}.pdf`;
+                            link.download = fileName;
                             link.click();
+                            toast.info("Downloading PDF", `Started download for "${fileName}".`);
                         }}
                         disabled={!pdfUrl}
-                        className="rounded-md border border-gray-700 px-4 py-1.5 text-sm text-gray-300 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-xl border border-[#15616d] bg-[#000c15] px-3.5 py-1.5 text-xs font-bold text-[#bfecf3] hover:bg-[#001524] hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                     >
-                        Download PDF
+                        <Download size={13} />
+                        <span>Download PDF</span>
                     </button>
 
                     <button
                         onClick={handleSave}
                         disabled={!isDirty || saving || loading || isAiWriting}
-                        className="rounded-md border border-gray-700 px-4 py-1.5 text-sm disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-xl border border-[#15616d] bg-[#000c15] px-3.5 py-1.5 text-xs font-bold text-[#bfecf3] hover:bg-[#001524] hover:text-white transition-colors disabled:opacity-40"
                     >
-                        {saving ? "Saving..." : isDirty ? "Save changes" : "Saved"}
+                        {saving ? (
+                            <>
+                                <Loader2 size={13} className="animate-spin text-[#ff7d00]" />
+                                <span>Saving...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Save size={13} />
+                                <span>{isDirty ? "Save changes" : "Saved"}</span>
+                            </>
+                        )}
                     </button>
 
                     <button
                         onClick={handleCompile}
                         disabled={compiling || loading || saving || isAiWriting}
-                        className="rounded-md bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] px-4 py-1.5 text-xs font-extrabold text-[#000407] shadow-md shadow-[#ff7d00]/25 transition-all disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                        {compiling ? "Compiling..." : "Compile"}
+                        {compiling ? (
+                            <>
+                                <Loader2 size={13} className="animate-spin" />
+                                <span>Compiling...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Play size={13} className="fill-current" />
+                                <span>Compile</span>
+                            </>
+                        )}
                     </button>
                 </div>
             </header>
@@ -487,34 +555,34 @@ function Workspace() {
                 >
                     {/* PDF Preview */}
                     <Panel id="preview" defaultSize="40%" minSize="25%">
-                        <section className="flex h-full min-h-0 flex-col">
-                            <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
-                                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                        <section className="flex h-full min-h-0 flex-col bg-[#000407]">
+                            <div className="flex h-10 shrink-0 items-center justify-between border-b border-[#15616d]/40 bg-[#00080e] px-4">
+                                <h2 className="text-xs font-bold uppercase tracking-wider text-[#bfecf3]">
                                     PDF Preview
                                 </h2>
                                 {compiling && (
-                                    <span className="flex items-center gap-1.5 text-xs text-blue-400">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                                    <span className="flex items-center gap-1.5 text-xs text-[#ff7d00] font-bold">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-[#ff7d00] animate-pulse" />
                                         Compiling...
                                     </span>
                                 )}
                             </div>
 
                             {compileError && (
-                                <div className="border-b border-red-900 bg-red-950/70 px-4 py-2.5 max-h-40 overflow-y-auto">
+                                <div className="border-b border-[#78290f] bg-[#78290f]/40 px-4 py-3 max-h-40 overflow-y-auto">
                                     <div className="flex items-center justify-between pb-1">
-                                        <span className="flex items-center gap-1.5 text-xs font-semibold text-red-400">
-                                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                                        <span className="flex items-center gap-1.5 text-xs font-bold text-[#ee9679]">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#e66235]" />
                                             LaTeX Compilation Error
                                         </span>
                                         <button
                                             onClick={() => setCompileError(null)}
-                                            className="text-xs text-red-400/80 hover:text-red-200"
+                                            className="text-xs text-[#ee9679] hover:text-white font-bold transition-colors"
                                         >
                                             Dismiss
                                         </button>
                                     </div>
-                                    <pre className="text-xs text-red-300 font-mono whitespace-pre-wrap break-words">
+                                    <pre className="text-xs text-[#f7cbbc] font-mono whitespace-pre-wrap break-words">
                                         {compileError}
                                     </pre>
                                 </div>
@@ -528,13 +596,16 @@ function Workspace() {
                                     className="h-full w-full border-0 bg-white"
                                 />
                             ) : (
-                                <div className="flex flex-1 items-center justify-center p-6">
-                                    <div className="text-center">
-                                        <p className="text-sm text-gray-400">
+                                <div className="flex flex-1 items-center justify-center p-6 bg-[#000407]">
+                                    <div className="text-center max-w-xs">
+                                        <div className="h-12 w-12 rounded-2xl bg-[#00111d] border border-[#15616d]/70 flex items-center justify-center mx-auto text-[#ff7d00] mb-3 shadow-inner">
+                                            <Play size={20} className="fill-current translate-x-0.5" />
+                                        </div>
+                                        <p className="text-sm font-bold text-white">
                                             No PDF generated yet
                                         </p>
-                                        <p className="mt-2 text-xs text-gray-600">
-                                            Compile your LaTeX source to preview your resume.
+                                        <p className="mt-1 text-xs text-[#bfecf3]">
+                                            Click the <strong className="text-[#ff7d00]">Compile</strong> button above to render your resume preview.
                                         </p>
                                     </div>
                                 </div>
@@ -542,7 +613,7 @@ function Workspace() {
                         </section>
                     </Panel>
 
-                    <Separator className="w-1 bg-gray-800 transition-colors hover:bg-blue-500 data-[separator=active]:bg-blue-500" />
+                    <Separator className="w-1 bg-[#15616d]/40 transition-colors hover:bg-[#ff7d00] data-[separator=active]:bg-[#ff7d00]" />
 
                     {/* Editor + AI Chat */}
                     <Panel id="workspace" defaultSize="60%" minSize="35%">
@@ -559,40 +630,41 @@ function Workspace() {
                         >
                             {/* LaTeX Editor */}
                             <Panel id="editor" defaultSize="60%" minSize="25%">
-                                <section className="flex h-full min-h-0 flex-col">
-                                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
+                                <section className="flex h-full min-h-0 flex-col bg-[#000407]">
+                                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-[#15616d]/40 bg-[#00080e] px-4">
                                         <div className="flex items-center gap-2">
-                                            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                                                LaTeX Editor
+                                            <h2 className="text-xs font-bold uppercase tracking-wider text-[#bfecf3]">
+                                                LaTeX Source
                                             </h2>
                                             {isAiWriting && (
-                                                <span className="flex items-center gap-1.5 rounded bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 border border-amber-500/20">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                                    AI Writing (Read-Only)
+                                                <span className="flex items-center gap-1.5 rounded-full bg-[#ff7d00]/20 px-2 py-0.5 text-[11px] font-bold text-[#ff7d00] border border-[#ff7d00]/50">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-[#ff7d00] animate-pulse" />
+                                                    AI Editing (Read-Only)
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-3">
                                             {diagnostics.length > 0 && (
-                                                <span className="text-xs text-amber-400">
+                                                <span className="text-xs text-[#ff9f17] font-bold">
                                                     {diagnostics.length} diagnostic{diagnostics.length === 1 ? "" : "s"}
                                                 </span>
                                             )}
-                                            <span className="text-xs text-gray-600">resume.tex</span>
+                                            <span className="font-mono text-xs text-[#3ec5da] font-bold">resume.tex</span>
                                         </div>
                                     </div>
 
-                                    <div className="min-h-0 flex-1">
+                                    <div className="min-h-0 flex-1 bg-[#000407]">
                                         <Editor
                                             height="100%"
                                             language="latex"
-                                            theme="vs-dark"
+                                            theme="studio-dark"
+                                            beforeMount={configureStudioTheme}
                                             value={latex}
                                             onChange={(value) => {
                                                 if (isAiWriting) return;
                                                 setLatex(value ?? "");
 
-                                                // Clear diagnostics when the source changes.
+                                                // Clear diagnostics when source changes
                                                 setDiagnostics([]);
                                                 applyDiagnostics([]);
                                             }}
@@ -603,15 +675,15 @@ function Workspace() {
                                             options={{
                                                 readOnly: isAiWriting,
                                                 minimap: { enabled: false },
-                                                fontSize: 14,
-                                                fontFamily: "monospace",
+                                                fontSize: 13,
+                                                fontFamily: "'Fira Code', 'JetBrains Mono', Consolas, monospace",
                                                 lineNumbers: "on",
                                                 scrollBeyondLastLine: false,
                                                 automaticLayout: true,
                                                 wordWrap: "on",
                                                 padding: {
-                                                    top: 16,
-                                                    bottom: 16,
+                                                    top: 14,
+                                                    bottom: 14,
                                                 },
                                             }}
                                         />
@@ -619,24 +691,24 @@ function Workspace() {
                                 </section>
                             </Panel>
 
-                            <Separator className="h-1 bg-gray-800 transition-colors hover:bg-blue-500 data-[separator=active]:bg-blue-500" />
+                            <Separator className="h-1 bg-[#15616d]/40 transition-colors hover:bg-[#ff7d00] data-[separator=active]:bg-[#ff7d00]" />
 
                             {/* AI Chat */}
                             <Panel id="chat" defaultSize="40%" minSize="20%">
-                                <section className="flex h-full min-h-0 flex-col bg-gray-950">
+                                <section className="flex h-full min-h-0 flex-col bg-[#000407]">
                                     {/* Chat Header */}
-                                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
+                                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-[#15616d]/40 bg-[#00080e] px-4">
                                         <div className="flex items-center gap-2">
-                                            <Sparkles size={14} className="text-blue-400" />
-                                            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                                            <Sparkles size={14} className="text-[#ff7d00]" />
+                                            <h2 className="text-xs font-bold uppercase tracking-wider text-[#bfecf3]">
                                                 AI Assistant
                                             </h2>
                                             {chatStatus && (
                                                 <span
-                                                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
                                                         chatStatus.configured
-                                                            ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                                                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                                            ? "bg-[#15616d]/30 text-[#3ec5da] border border-[#15616d]"
+                                                            : "bg-[#78290f]/30 text-[#ee9679] border border-[#78290f]"
                                                     }`}
                                                 >
                                                     {chatStatus.configured
@@ -650,7 +722,7 @@ function Workspace() {
                                             <button
                                                 onClick={handleClearChat}
                                                 title="Clear conversation"
-                                                className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded"
+                                                className="text-[#bfecf3] hover:text-white transition-colors p-1 rounded-lg hover:bg-[#001524]"
                                             >
                                                 <Trash2 size={13} />
                                             </button>
@@ -659,10 +731,10 @@ function Workspace() {
 
                                     {/* Unconfigured Alert */}
                                     {chatStatus && !chatStatus.configured && (
-                                        <div className="border-b border-amber-900/40 bg-amber-950/20 px-3 py-2 flex items-start gap-2 text-xs text-amber-400">
-                                            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                                        <div className="border-b border-[#78290f] bg-[#78290f]/20 px-3 py-2 flex items-start gap-2 text-xs text-[#ee9679]">
+                                            <AlertCircle size={14} className="shrink-0 mt-0.5 text-[#e66235]" />
                                             <p className="leading-tight">
-                                                Add your API key (<code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>ANTHROPIC_API_KEY</code>) to <code>.env</code> in the project root to activate the AI assistant.
+                                                Configure your API key (<code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>ANTHROPIC_API_KEY</code>) in <code>.env</code> to activate the AI assistant.
                                             </p>
                                         </div>
                                     )}
@@ -670,15 +742,17 @@ function Workspace() {
                                     {/* Message List or Empty Suggestions */}
                                     <div
                                         ref={chatScrollRef}
-                                        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
+                                        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-[#000407]"
                                     >
                                         {chatMessages.length === 0 ? (
                                             <div className="flex h-full flex-col items-center justify-center text-center p-2">
-                                                <Bot size={28} className="text-gray-600 mb-2" />
-                                                <p className="text-sm font-medium text-gray-300">
+                                                <div className="h-10 w-10 rounded-2xl bg-[#00111d] border border-[#15616d]/80 flex items-center justify-center text-[#ff7d00] mb-2 shadow-inner">
+                                                    <Bot size={22} />
+                                                </div>
+                                                <p className="text-sm font-bold text-white">
                                                     How can I help with your resume?
                                                 </p>
-                                                <p className="mt-1 text-xs text-gray-500 max-w-xs">
+                                                <p className="mt-1 text-xs text-[#bfecf3] max-w-xs">
                                                     Ask to tailor bullet points, import profile details, or fix LaTeX errors.
                                                 </p>
 
@@ -686,15 +760,15 @@ function Workspace() {
                                                 <div className="mt-4 flex flex-col gap-1.5 w-full max-w-sm text-left">
                                                     {[
                                                         "Tailor bullet points for a Senior Developer role",
-                                                        "Import experience and skills from my profile",
-                                                        "Enhance resume formatting and action verbs",
-                                                        "Fix LaTeX compilation errors",
+                                                        "Import experience and skills from my master profile",
+                                                        "Enhance resume formatting and strong action verbs",
+                                                        "Fix LaTeX compilation errors and warnings",
                                                     ].map((prompt, idx) => (
                                                         <button
                                                             key={idx}
                                                             onClick={() => handleSendMessage(prompt)}
                                                             disabled={!chatStatus?.configured || isChatThinking}
-                                                            className="rounded-md border border-gray-800 bg-gray-900/60 px-3 py-1.5 text-xs text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-200 transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            className="rounded-xl border border-[#15616d]/70 bg-[#000c15] px-3.5 py-2 text-xs font-semibold text-[#ffecd1] hover:border-[#ff7d00] hover:text-[#ff7d00] hover:bg-[#001524] transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                                                         >
                                                             ✨ {prompt}
                                                         </button>
@@ -710,16 +784,16 @@ function Workspace() {
                                                     }`}
                                                 >
                                                     {msg.role === "assistant" && (
-                                                        <div className="h-6 w-6 rounded-full bg-blue-900/50 border border-blue-700/50 flex items-center justify-center shrink-0 mt-0.5">
-                                                            <Bot size={13} className="text-blue-400" />
+                                                        <div className="h-6 w-6 rounded-full bg-[#00111d] border border-[#ff7d00]/50 flex items-center justify-center shrink-0 mt-0.5 text-[#ff7d00]">
+                                                            <Bot size={13} />
                                                         </div>
                                                     )}
 
                                                     <div
-                                                        className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-xs leading-relaxed ${
+                                                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
                                                             msg.role === "user"
-                                                                ? "bg-blue-600 text-white"
-                                                                : "bg-gray-900 border border-gray-800 text-gray-200"
+                                                                ? "bg-[#ff7d00] text-[#000407] font-bold shadow-md shadow-[#ff7d00]/20"
+                                                                : "bg-[#000c15] border border-[#15616d]/60 text-[#ffecd1] shadow-md"
                                                         }`}
                                                     >
                                                         {/* Tool usage tags */}
@@ -728,7 +802,7 @@ function Workspace() {
                                                                 {msg.toolsUsed.map((tool) => (
                                                                     <span
                                                                         key={tool}
-                                                                        className="inline-flex items-center gap-1 rounded bg-gray-800 border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-400 font-mono"
+                                                                        className="inline-flex items-center gap-1 rounded-md bg-[#000407] border border-[#15616d] px-1.5 py-0.5 text-[10px] text-[#3ec5da] font-mono font-bold"
                                                                     >
                                                                         <Wrench size={9} />
                                                                         {tool}
@@ -745,15 +819,15 @@ function Workspace() {
                                                                         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                                                                         h1: ({ children }) => <h1 className="text-sm font-bold text-white mt-3 mb-1.5">{children}</h1>,
                                                                         h2: ({ children }) => <h2 className="text-xs font-bold text-white mt-2.5 mb-1">{children}</h2>,
-                                                                        h3: ({ children }) => <h3 className="text-xs font-semibold text-blue-300 mt-2 mb-1">{children}</h3>,
+                                                                        h3: ({ children }) => <h3 className="text-xs font-semibold text-[#ff7d00] mt-2 mb-1">{children}</h3>,
                                                                         ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1.5 pl-1">{children}</ul>,
                                                                         ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 my-1.5 pl-1">{children}</ol>,
-                                                                        li: ({ children }) => <li className="text-gray-300">{children}</li>,
-                                                                        code: ({ children }) => <code className="bg-gray-800 text-amber-300 px-1 py-0.5 rounded text-[11px] font-mono">{children}</code>,
-                                                                        pre: ({ children }) => <pre className="bg-gray-800/80 p-2 rounded my-1.5 overflow-x-auto text-[11px] font-mono text-gray-200">{children}</pre>,
-                                                                        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">{children}</a>,
-                                                                        hr: () => <hr className="border-gray-800 my-2" />,
-                                                                        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                                                                        li: ({ children }) => <li className="text-[#ffecd1]">{children}</li>,
+                                                                        code: ({ children }) => <code className="bg-[#000407] border border-[#15616d] text-[#ff7d00] px-1 py-0.5 rounded text-[11px] font-mono">{children}</code>,
+                                                                        pre: ({ children }) => <pre className="bg-[#000407] border border-[#15616d] p-2.5 rounded-xl my-1.5 overflow-x-auto text-[11px] font-mono text-[#ffecd1]">{children}</pre>,
+                                                                        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#3ec5da] underline hover:text-[#7ed9e7]">{children}</a>,
+                                                                        hr: () => <hr className="border-[#15616d]/50 my-2" />,
+                                                                        strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
                                                                     }}
                                                                 >
                                                                     {cleanMessageContent(msg.content)}
@@ -764,16 +838,26 @@ function Workspace() {
                                                         )}
 
                                                         {msg.isStreaming && !msg.content && (
-                                                            <div className="flex items-center gap-1.5 py-1 text-gray-400">
-                                                                <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-                                                                <span className="text-[11px] italic">Thinking...</span>
+                                                            <div className="flex items-center gap-1.5 py-1 text-[#bfecf3]">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-[#ff7d00] animate-pulse" />
+                                                                <span className="text-[11px] italic">
+                                                                    {compiling
+                                                                        ? "Compiling PDF preview..."
+                                                                        : isAiWriting
+                                                                        ? "Updating LaTeX code..."
+                                                                        : activeTool
+                                                                        ? `Running tool: ${activeTool}...`
+                                                                        : msg.toolsUsed && msg.toolsUsed.includes("write_latex")
+                                                                        ? "Resume updated! Summarizing changes..."
+                                                                        : "Thinking..."}
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>
 
                                                     {msg.role === "user" && (
-                                                        <div className="h-6 w-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center shrink-0 mt-0.5">
-                                                            <User size={13} className="text-gray-400" />
+                                                        <div className="h-6 w-6 rounded-full bg-[#001524] border border-[#15616d] flex items-center justify-center shrink-0 mt-0.5 text-[#bfecf3]">
+                                                            <User size={13} />
                                                         </div>
                                                     )}
                                                 </div>
@@ -782,7 +866,7 @@ function Workspace() {
 
                                         {/* Active Tool Badge */}
                                         {activeTool && (
-                                            <div className="flex items-center gap-2 px-2 text-xs text-amber-400 animate-pulse">
+                                            <div className="flex items-center gap-2 px-2 text-xs text-[#3ec5da] animate-pulse font-mono">
                                                 <Wrench size={12} />
                                                 <span>Running tool: <code>{activeTool}</code>...</span>
                                             </div>
@@ -790,7 +874,7 @@ function Workspace() {
                                     </div>
 
                                     {/* Input Footer */}
-                                    <div className="border-t border-gray-800 p-3">
+                                    <div className="border-t border-[#15616d]/40 bg-[#00080e] p-3">
                                         <form
                                             onSubmit={(e) => {
                                                 e.preventDefault();
@@ -807,7 +891,7 @@ function Workspace() {
                                                         ? "Ask AI to edit, format, or improve your resume..."
                                                         : "Configure API key in .env to chat..."
                                                 }
-                                                className="flex-1 rounded-md border border-gray-800 bg-gray-900 px-3 py-2 text-xs text-gray-200 placeholder-gray-500 outline-none focus:border-blue-500 disabled:opacity-50 transition-colors"
+                                                className="flex-1 rounded-xl border border-[#15616d] bg-[#000c15] px-3.5 py-2 text-xs text-[#ffecd1] placeholder-[#7ed9e7]/50 outline-none focus:border-[#ff7d00] focus:ring-1 focus:ring-[#ff7d00]/30 disabled:opacity-50 transition-all font-medium"
                                             />
                                             <button
                                                 type="submit"
@@ -816,9 +900,9 @@ function Workspace() {
                                                     isChatThinking ||
                                                     (chatStatus !== null && !chatStatus.configured)
                                                 }
-                                                className="rounded-md bg-blue-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
+                                                className="rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] px-4 py-2 text-xs font-bold text-[#000407] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md shadow-[#ff7d00]/25 active:scale-95"
                                             >
-                                                <Send size={13} />
+                                                <Send size={13} className="stroke-[2.5]" />
                                             </button>
                                         </form>
                                     </div>
