@@ -12,6 +12,7 @@ from backend.services.latex_diagnostic_parser import (
     LatexDiagnosticParser,
 )
 
+
 class CompilationError(Exception):
     def __init__(
         self,
@@ -77,6 +78,7 @@ class CompilationService:
 
             except subprocess.TimeoutExpired as error:
                 output = error.stdout or ""
+
                 if isinstance(output, bytes):
                     output = output.decode(errors="replace")
 
@@ -95,7 +97,6 @@ class CompilationService:
 
             if result.returncode != 0 or not compiled_pdf.is_file():
                 log_path = build_dir / "resume.log"
-
                 diagnostics = []
 
                 if log_path.is_file():
@@ -104,7 +105,9 @@ class CompilationService:
                         errors="replace",
                     )
 
-                    diagnostics = LatexDiagnosticParser.parse(log_content)
+                    diagnostics = LatexDiagnosticParser.parse(
+                        log_content
+                    )
 
                 raise CompilationError(
                     "LaTeX compilation failed",
@@ -112,7 +115,6 @@ class CompilationService:
                     diagnostics,
                 )
 
-            # Replace the previous PDF only after successful compilation.
             compiled_pdf.replace(pdf_path)
 
         self.project_service.update_document_timestamp(project_id)

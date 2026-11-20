@@ -15,43 +15,7 @@ from backend.services.project_storage import ProjectStorage
 from backend.services.compilation_service import CompilationError
 
 
-@pytest.fixture
-def storage(tmp_path):
-    return ProjectStorage(tmp_path / "projects")
 
-
-@pytest.fixture
-def client(storage):
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    TestingSessionLocal = sessionmaker(
-        bind=engine,
-        autoflush=False,
-        autocommit=False,
-    )
-
-    Base.metadata.create_all(engine)
-
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_project_storage] = lambda: storage
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
-    Base.metadata.drop_all(engine)
-    engine.dispose()
 
 
 def test_create_project(client, storage):
@@ -358,4 +322,69 @@ def test_get_pdf_for_nonexistent_project(client):
     )
 
     assert response.status_code == 404
+
+
+def test_post_project_event(client):
+    created = client.post(
+        "/api/projects",
+        json={"title": "Event Test Resume"},
+    ).json()
+
+    response = client.post(
+        f"/api/projects/{created['id']}/events",
+        json={
+            "event_type": "latex_update_started",
+            "payload": {"status": "started"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "event_type": "latex_update_started",
+    }
+
+
+def test_post_event_nonexistent_project(client):
+    response = client.post(
+        "/api/projects/00000000-0000-0000-0000-000000000000/events",
+        json={"event_type": "test"},
+    )
+    assert response.status_code == 404
+
+
+def test_stream_project_events(client):
+    import json
+    from backend.services.event_manager import event_manager
+
+    created = client.post(
+        "/api/projects",
+        json={"title": "SSE Stream Test"},
+    ).json()
+
+    project_id = created["id"]
+
+    with client.stream("GET", f"/api/projects/{project_id}/events") as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+
+        lines = response.iter_lines()
+        # Initial connected message
+        connected_line = next(lines)
+        assert connected_line.startswith("data: ")
+        data = json.loads(connected_line[6:])
+        assert data["event_type"] == "connected"
+
+        # Emit an event
+        event_manager.emit(
+            project_id,
+            {"event_type": "ai_writing_started", "payload": {"status": "started"}},
+        )
+
+        # Skip separator
+        next(lines)
+        event_line = next(lines)
+        assert event_line.startswith("data: ")
+        event_data = json.loads(event_line[6:])
+        assert event_data["event_type"] == "ai_writing_started"
 

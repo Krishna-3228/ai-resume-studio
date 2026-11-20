@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from backend.services.profile_service import ProfileService
 from backend.routers.projects import router as projects_router
+from backend.routers.chat import router as chat_router
 
 
 # Resolve the repository root independently of the working directory.
@@ -34,6 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(projects_router)
+app.include_router(chat_router)
 
 class ProfileUpdate(BaseModel):
     content: str

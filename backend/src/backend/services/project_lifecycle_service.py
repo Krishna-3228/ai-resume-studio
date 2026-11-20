@@ -71,9 +71,10 @@ class ProjectLifecycleService:
             try:
                 self.storage.finalize_project_deletion(tombstone_dir)
             except OSError:
-                # Database deletion succeeded, but filesystem cleanup failed.
-                # The leftover tombstone can be cleaned up separately.
                 import logging
-                logging.exception("Could not remove project directory: %s", project_id)
+                logging.exception(
+                    "Could not remove project directory: %s",
+                    project_id,
+                )
 
         return True

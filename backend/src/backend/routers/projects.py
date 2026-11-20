@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from fastapi.responses import FileResponse
+import asyncio
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.db.dependencies import get_db
@@ -20,15 +23,11 @@ from backend.services.compilation_service import (
     CompilationService,
     CompilationError,
 )
+from backend.services.event_manager import event_manager
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
 
-@router.post(
-    "",
-    response_model=ProjectResponse,
-    status_code=status.HTTP_201_CREATED,
-)
 @router.post(
     "",
     response_model=ProjectResponse,
@@ -206,4 +205,66 @@ def get_project_pdf(
         path=pdf_path,
         media_type="application/pdf",
         filename="resume.pdf",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
+@router.post("/{project_id}/events")
+def post_project_event(
+    project_id: str,
+    event: dict,
+    db: Session = Depends(get_db),
+):
+    project = ProjectService(db).get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    event["project_id"] = project_id
+    event_manager.emit(project_id, event)
+    return {"status": "ok", "event_type": event.get("event_type")}
+
+
+@router.get("/{project_id}/events")
+async def stream_project_events(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    project = ProjectService(db).get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    queue = event_manager.subscribe(project_id)
+
+    async def event_generator():
+        try:
+            initial = {
+                "event_type": "connected",
+                "project_id": project_id,
+            }
+            yield f"data: {json.dumps(initial)}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        finally:
+            event_manager.unsubscribe(project_id, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
