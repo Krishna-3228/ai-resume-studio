@@ -3,10 +3,12 @@ import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Workspace from "./pages/Workspace";
+import { Toaster } from "./components/toast";
 
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" />
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
