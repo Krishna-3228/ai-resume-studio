@@ -23,9 +23,9 @@ def read_latex(project_id: str) -> str:
 
 
 @mcp.tool()
-def write_latex(project_id: str, content: str) -> dict:
+def write_latex(project_id: str, content: str, summary: str = "") -> dict:
     """Replace the LaTeX source of a resume project and automatically compile it into a PDF."""
-    return project_service.write_latex(project_id, content)
+    return project_service.write_latex(project_id, content, summary)
 
 
 @mcp.tool()

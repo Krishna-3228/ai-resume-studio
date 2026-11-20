@@ -16,7 +16,7 @@ class EventService:
 
     def __init__(self, backend_url: str | None = None):
         self.backend_url = backend_url or os.getenv(
-            "BACKEND_URL", "http://localhost:8000"
+            "BACKEND_URL", "http://127.0.0.1:8000"
         )
 
     def _get_event_file(self, project_id: str) -> Path:
@@ -66,11 +66,10 @@ class EventService:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=1.0):
+            with urllib.request.urlopen(req, timeout=5.0):
                 pass
-        except Exception:
-            # Backend might not be running in tests or standalone execution
-            pass
+        except Exception as err:
+            logger.debug("Could not broadcast event to backend: %s", err)
 
         return event
 

@@ -214,7 +214,7 @@ def get_project_pdf(
 
 
 @router.post("/{project_id}/events")
-def post_project_event(
+async def post_project_event(
     project_id: str,
     event: dict,
     db: Session = Depends(get_db),

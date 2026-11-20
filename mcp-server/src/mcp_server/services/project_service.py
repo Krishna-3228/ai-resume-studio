@@ -15,7 +15,7 @@ class ProjectService:
         latex_file = self.storage_service.get_latex_file(project_id)
         return latex_file.read_text(encoding="utf-8")
 
-    def write_latex(self, project_id: str, content: str) -> dict:
+    def write_latex(self, project_id: str, content: str, summary: str = "") -> dict:
         latex_file = self.storage_service.get_latex_file(project_id)
         operation_id = str(uuid4())
 
@@ -43,6 +43,7 @@ class ProjectService:
                     "source": "mcp",
                     "status": "completed",
                     "content": content,
+                    "summary": summary,
                 },
             )
 
@@ -55,6 +56,7 @@ class ProjectService:
                     "success": False,
                     "message": "LaTeX source updated, but compilation failed.",
                     "compile_error": compile_res.get("output", "Compilation error"),
+                    "summary": summary,
                 }
 
             return {
@@ -62,6 +64,7 @@ class ProjectService:
                 "operation_id": operation_id,
                 "success": True,
                 "message": "LaTeX source updated and PDF compiled successfully.",
+                "summary": summary,
             }
         except Exception as error:
             self.event_service.emit_event(

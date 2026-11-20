@@ -38,7 +38,21 @@ class EventManager:
             project_id,
         )
         for queue in subscribers:
-            queue.put_nowait(event)
+            try:
+                loop = getattr(queue, "_loop", None)
+                if loop and loop.is_running():
+                    try:
+                        current_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        current_loop = None
+
+                    if current_loop is not loop:
+                        loop.call_soon_threadsafe(queue.put_nowait, event)
+                        continue
+
+                queue.put_nowait(event)
+            except Exception as exc:
+                logger.warning("Failed to dispatch event to subscriber queue: %s", exc)
 
 
 event_manager = EventManager()

@@ -75,33 +75,70 @@ def _make_prompt_callable(system_prompt: str):
 
     def prompt_fn(state: dict) -> list[BaseMessage]:
         raw_msgs = state.get("messages", [])
+        if not raw_msgs:
+            return [sys_msg]
 
-        # Detect if write_latex has been called in history
-        write_call_ids = set()
-        read_call_ids = set()
+        # Map tool_call_id to tool name from AIMessage tool_calls
+        tool_id_to_name = {}
         for msg in raw_msgs:
             if isinstance(msg, AIMessage) and msg.tool_calls:
                 for tc in msg.tool_calls:
-                    if tc.get("name") == "write_latex":
-                        write_call_ids.add(tc.get("id"))
-                    elif tc.get("name") == "read_latex":
-                        read_call_ids.add(tc.get("id"))
+                    tid = tc.get("id")
+                    if tid:
+                        tool_id_to_name[tid] = tc.get("name")
 
-        has_written = bool(write_call_ids)
+        # Find the index of the last HumanMessage to demarcate past turns vs current turn
+        last_human_idx = -1
+        for idx, msg in enumerate(raw_msgs):
+            if isinstance(msg, HumanMessage):
+                last_human_idx = idx
+
+        # Check if write_latex has completed in the current turn
+        current_write_completed = any(
+            tool_id_to_name.get(msg.tool_call_id) == "write_latex"
+            for idx, msg in enumerate(raw_msgs)
+            if idx > last_human_idx and isinstance(msg, ToolMessage)
+        )
+
         cleaned_msgs: list[BaseMessage] = []
-        for msg in raw_msgs:
-            # If write_latex has already run, older read_latex output is redundant; compress it
-            if has_written and isinstance(msg, ToolMessage) and msg.tool_call_id in read_call_ids:
-                cleaned_msgs.append(
-                    ToolMessage(
-                        content="[Original LaTeX source code inspected and updated]",
-                        tool_call_id=msg.tool_call_id,
-                        name=getattr(msg, "name", "read_latex"),
-                        id=msg.id,
+        for idx, msg in enumerate(raw_msgs):
+            if idx < last_human_idx:
+                # Historical turns: compress bulky tool payloads to keep TPM well below provider caps
+                if isinstance(msg, ToolMessage):
+                    cleaned_msgs.append(
+                        ToolMessage(
+                            content="[Previous tool output completed]",
+                            tool_call_id=msg.tool_call_id,
+                            name=tool_id_to_name.get(msg.tool_call_id, getattr(msg, "name", "")),
+                            id=msg.id,
+                        )
                     )
-                )
+                elif isinstance(msg, AIMessage) and msg.tool_calls:
+                    compact_tcs = []
+                    for tc in msg.tool_calls:
+                        c = dict(tc)
+                        c["args"] = {
+                            k: "[code]" if len(str(v)) > 100 else v
+                            for k, v in tc.get("args", {}).items()
+                        }
+                        compact_tcs.append(c)
+                    cleaned_msgs.append(AIMessage(content=msg.content, tool_calls=compact_tcs, id=msg.id))
+                else:
+                    cleaned_msgs.append(msg)
             else:
-                cleaned_msgs.append(msg)
+                # Current turn:
+                tname = tool_id_to_name.get(getattr(msg, "tool_call_id", ""))
+                if current_write_completed and isinstance(msg, ToolMessage) and tname == "read_latex":
+                    cleaned_msgs.append(
+                        ToolMessage(
+                            content="[Original LaTeX source code inspected and updated]",
+                            tool_call_id=msg.tool_call_id,
+                            name="read_latex",
+                            id=msg.id,
+                        )
+                    )
+                else:
+                    cleaned_msgs.append(msg)
 
         return [sys_msg] + cleaned_msgs
 
@@ -166,14 +203,13 @@ class AgentService:
             f"The user is working on the resume project with ID: {project_id}.\n\n"
             "Your Capabilities & Tools:\n"
             "- read_latex: Inspect the current LaTeX code of this resume (no arguments required).\n"
-            "- write_latex: Replace the LaTeX code of this resume with updated, valid LaTeX. "
-            "NOTE: write_latex AUTOMATICALLY compiles the PDF upon saving. You do NOT need to call compile_resume after write_latex.\n"
+            "- write_latex: Replace the LaTeX code of this resume with updated, valid LaTeX. NOTE: write_latex AUTOMATICALLY compiles the PDF upon saving. You do NOT need to call compile_resume after write_latex.\n"
             "- compile_resume: Manually re-compile the resume if needed (no arguments required).\n"
             "- Profile tools: get_personal_info, get_education, get_experience, get_projects, "
             "get_certifications, get_skills to read master profile sections.\n\n"
             "Operating Instructions:\n"
             "1. Before proposing or making any changes, inspect the current resume source using read_latex.\n"
-            "2. If the user asks to add information from their profile, call the relevant profile tool(s).\n"
+            "2. Profile tools policy: ONLY call profile tools (get_personal_info, get_education, get_experience, get_projects, get_certifications, get_skills) when the user explicitly requests importing or checking information from their profile. If the user asks to edit, reformat, improve verbs, add skills, or reorder content in their resume, work directly with read_latex and write_latex. DO NOT call profile tools unless explicitly prompted.\n"
             "3. When updating the resume with write_latex, provide the COMPLETE, valid, and properly formatted "
             "LaTeX document in 'content'.\n"
             "   CRITICAL LATEX SYNTAX RULES:\n"
@@ -181,7 +217,7 @@ class AgentService:
             "   - Other special characters like %, _, #, $ must also be escaped as \\%, \\_, \\#, \\$ unless used in valid LaTeX commands.\n"
             "4. Since write_latex automatically compiles the PDF, you do NOT need to call compile_resume after calling write_latex. "
             "If write_latex reports a compilation failure, inspect the error output, fix the LaTeX code, and call write_latex again.\n"
-            "5. Once write_latex succeeds, summarize your edits clearly and professionally in your final response.\n"
+            "5. Immediately after write_latex succeeds, finish your turn. Do NOT call read_latex or compile_resume again. Conclude with a brief 1-2 sentence summary (under 50 words) of the changes made. Never repeat full paragraphs.\n"
             "6. Call only the tools listed above; do not invent other tool names."
         )
 
@@ -224,6 +260,8 @@ class AgentService:
         inputs = {"messages": [HumanMessage(content=message)]}
 
         accumulated_text = ""
+        last_tool_summary = ""
+        last_write_succeeded = False
 
         try:
             async for event in agent.astream_events(inputs, config=config, version="v2"):
@@ -232,6 +270,10 @@ class AgentService:
                 if kind == "on_tool_start":
                     tool_name = event.get("name")
                     tool_input = event.get("data", {}).get("input", {})
+                    if tool_name == "write_latex":
+                        summary = tool_input.get("summary", "")
+                        if summary:
+                            last_tool_summary = str(summary).strip()
                     yield {
                         "type": "tool_start",
                         "tool": tool_name,
@@ -240,10 +282,45 @@ class AgentService:
 
                 elif kind == "on_tool_end":
                     tool_name = event.get("name")
+                    tool_output = event.get("data", {}).get("output")
+                    if tool_name == "write_latex":
+                        output_data = {}
+                        if isinstance(tool_output, dict):
+                            output_data = tool_output
+                        elif hasattr(tool_output, "content"):
+                            try:
+                                output_data = json.loads(tool_output.content)
+                            except Exception:
+                                pass
+
+                        if output_data.get("success", False):
+                            last_write_succeeded = True
+                            if not last_tool_summary and output_data.get("summary"):
+                                last_tool_summary = str(output_data["summary"]).strip()
+
                     yield {
                         "type": "tool_end",
                         "tool": tool_name,
                     }
+
+                    # Fast-path completion: Once write_latex successfully updates and compiles the PDF,
+                    # deliver the confirmation summary immediately to avoid a redundant 3rd LLM round-trip
+                    # and prevent cloud rate-limiting / TTFT delays!
+                    if last_write_succeeded and last_tool_summary:
+                        try:
+                            await agent.aupdate_state(config, {"messages": [AIMessage(content=last_tool_summary)]})
+                        except Exception:
+                            pass
+
+                        yield {
+                            "type": "chunk",
+                            "content": last_tool_summary,
+                        }
+                        yield {
+                            "type": "done",
+                            "reply": last_tool_summary,
+                        }
+                        return
 
                 elif kind == "on_chat_model_stream":
                     chunk = event.get("data", {}).get("chunk")
