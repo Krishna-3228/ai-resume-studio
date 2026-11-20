@@ -19,9 +19,12 @@ dist/
 data/profile/*.yaml
 data/profile/*.yml
 data/*.db
+data/resume_studio.db
 
 # Generated resume projects
 data/projects/*
+data/events/*
+data/locks/*
 
 # LaTeX generated files
 *.aux
