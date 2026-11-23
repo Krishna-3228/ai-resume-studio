@@ -1,5 +1,5 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, UserRound, Sparkles, FileText } from "lucide-react";
+import { NavLink, Outlet } from "react-router-dom";
+import { LayoutDashboard, UserRound, FileText } from "lucide-react";
 
 const navigation = [
   {
@@ -17,16 +17,8 @@ const navigation = [
 ];
 
 export default function AppLayout() {
-  const location = useLocation();
-  const currentRouteName =
-    location.pathname === "/"
-      ? "Projects Dashboard"
-      : location.pathname.startsWith("/profile")
-      ? "Master Profile"
-      : "Workspace";
-
   return (
-    <div className="min-h-screen bg-[#000407] text-[#ffecd1] selection:bg-[#ff7d00]/30 selection:text-[#ff9633]">
+    <div className="h-screen bg-[#000407] text-[#ffecd1] selection:bg-[#ff7d00]/30 selection:text-[#ff9633] overflow-hidden">
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 flex w-64 flex-col border-r border-[#15616d]/30 bg-[#00080e] z-30">
         {/* Brand Header */}
@@ -97,29 +89,9 @@ export default function AppLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="ml-64 min-h-screen flex flex-col bg-[#000407]">
-        {/* Top Header Bar */}
-        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-[#15616d]/30 bg-[#00080e]/95 px-8 backdrop-blur-md">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold text-[#7ed9e7] uppercase tracking-wider">
-              AI Resume Studio
-            </span>
-            <span className="text-[#15616d] font-bold">/</span>
-            <h2 className="text-sm font-bold text-white">
-              {currentRouteName}
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full border border-[#15616d]/50 bg-[#00111d] px-3.5 py-1 text-xs text-[#bfecf3]">
-              <Sparkles className="h-3.5 w-3.5 text-[#ff7d00]" />
-              <span className="font-medium">Tailored LaTeX Resumes</span>
-            </div>
-          </div>
-        </header>
-
+      <main className="ml-64 h-screen flex flex-col bg-[#000407] overflow-hidden">
         {/* Page Content */}
-        <div className="flex-1 p-8 max-w-7xl w-full mx-auto">
+        <div className="flex-1 h-full min-h-0 p-8 max-w-7xl w-full mx-auto flex flex-col">
           <Outlet />
         </div>
       </main>

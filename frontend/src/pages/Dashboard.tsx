@@ -201,9 +201,9 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="space-y-8">
+        <div className="flex-1 min-h-0 flex flex-col gap-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-white">
                         All Projects
@@ -215,7 +215,7 @@ export default function Dashboard() {
 
                 <button
                     onClick={() => setShowCreateModal(true)}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] px-5 py-2.5 text-sm font-bold text-[#000407] shadow-lg shadow-[#ff7d00]/25 transition-all cursor-pointer active:scale-95"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] px-5 py-2.5 text-sm font-bold text-[#000407] shadow-lg shadow-[#ff7d00]/25 transition-all cursor-pointer active:scale-95 shrink-0"
                 >
                     <Plus size={18} className="stroke-[3]" />
                     <span>New Project</span>
@@ -223,7 +223,7 @@ export default function Dashboard() {
             </div>
 
             {/* Search and Filters Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-md">
                     <div className="flex items-center gap-3 rounded-xl border border-[#15616d]/70 bg-[#000c15] px-4 py-2.5 focus-within:border-[#ff7d00] focus-within:ring-2 focus-within:ring-[#ff7d00]/20 transition-all shadow-inner">
                         <Search size={18} className="text-[#3ec5da] shrink-0" />
@@ -255,14 +255,14 @@ export default function Dashboard() {
             </div>
 
             {/* Project List / Table Container */}
-            <div className="rounded-2xl border border-[#15616d]/50 bg-[#000c15] overflow-hidden shadow-2xl shadow-black">
+            <div className="flex-1 min-h-0 rounded-2xl border border-[#15616d]/50 bg-[#000c15] overflow-hidden shadow-2xl shadow-black flex flex-col">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-24 text-[#bfecf3] gap-3">
+                    <div className="flex-1 flex flex-col items-center justify-center py-16 text-[#bfecf3] gap-3">
                         <Loader2 size={26} className="animate-spin text-[#ff7d00]" />
                         <span className="text-sm font-semibold text-white">Loading resume projects...</span>
                     </div>
                 ) : error ? (
-                    <div className="py-16 text-center text-[#ee9679]">
+                    <div className="flex-1 flex flex-col items-center justify-center py-16 text-center text-[#ee9679]">
                         <p className="font-semibold">{error}</p>
                         <button
                             onClick={loadProjects}
@@ -272,7 +272,7 @@ export default function Dashboard() {
                         </button>
                     </div>
                 ) : filteredProjects.length === 0 ? (
-                    <div className="py-20 px-6 text-center">
+                    <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 text-center">
                         <div className="h-14 w-14 rounded-2xl bg-[#001524] border border-[#15616d]/70 flex items-center justify-center mx-auto text-[#ff7d00] shadow-inner">
                             <FileText size={28} />
                         </div>
@@ -298,19 +298,19 @@ export default function Dashboard() {
                         )}
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="flex-1 min-h-0 overflow-auto">
                         <table className="w-full min-w-[650px] border-collapse text-left">
-                            <thead>
+                            <thead className="sticky top-0 z-10 bg-[#00111d] shadow-[inset_0_-1px_0_rgba(21,97,109,0.5)]">
                                 <tr className="border-b border-[#15616d]/50 bg-[#00111d] text-xs font-bold tracking-wider text-[#bfecf3] uppercase">
-                                    <th className="px-6 py-4">Title & Details</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Last Modified</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="sticky top-0 bg-[#00111d] px-6 py-4">Title & Details</th>
+                                    <th className="sticky top-0 bg-[#00111d] px-6 py-4">Status</th>
+                                    <th className="sticky top-0 bg-[#00111d] px-6 py-4">Last Modified</th>
+                                    <th className="sticky top-0 bg-[#00111d] px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
 
                             <tbody className="divide-y divide-[#15616d]/20">
-                                {filteredProjects.map((project) => (
+                                {filteredProjects.map((project, index) => (
                                     <tr
                                         key={project.id}
                                         onClick={() => navigate(`/projects/${project.id}`)}
@@ -367,7 +367,11 @@ export default function Dashboard() {
                                                 </button>
 
                                                 {activeMenu === project.id && (
-                                                    <div className="absolute right-0 z-30 mt-2 w-48 rounded-xl border border-[#15616d] bg-[#00111d] p-1.5 text-left shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+                                                    <div className={`absolute right-0 z-30 ${
+                                                        index >= filteredProjects.length - 2 && filteredProjects.length > 2
+                                                            ? "bottom-full mb-2"
+                                                            : "mt-2"
+                                                    } w-48 rounded-xl border border-[#15616d] bg-[#00111d] p-1.5 text-left shadow-2xl animate-in fade-in zoom-in-95 duration-100`}>
                                                         <button
                                                             onClick={() => openEditModal(project, "rename")}
                                                             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[#ffecd1] hover:bg-[#001524] hover:text-[#ff7d00] transition-colors"

@@ -134,9 +134,9 @@ export default function Profile() {
 
 
     return (
-        <div className="space-y-6">
+        <div className="flex-1 min-h-0 flex flex-col gap-5">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-white">
                         Master Profile
@@ -148,14 +148,14 @@ export default function Profile() {
             </div>
 
             {/* Editor Workspace Container with High Contrast */}
-            <div className="flex min-h-[640px] overflow-hidden rounded-2xl border-2 border-[#15616d]/50 bg-[#000c15] shadow-2xl shadow-black">
+            <div className="flex-1 min-h-0 flex overflow-hidden rounded-2xl border-2 border-[#15616d]/50 bg-[#000c15] shadow-2xl shadow-black">
                 {/* Aside Section Nav */}
-                <aside className="w-64 shrink-0 border-r border-[#15616d]/40 bg-[#00080e] p-4 flex flex-col">
-                    <h2 className="mb-3 px-3 text-[11px] font-bold uppercase tracking-wider text-[#7ed9e7]">
+                <aside className="w-64 shrink-0 border-r border-[#15616d]/40 bg-[#00080e] p-4 flex flex-col min-h-0">
+                    <h2 className="mb-3 px-3 text-[11px] font-bold uppercase tracking-wider text-[#7ed9e7] shrink-0">
                         Profile Sections
                     </h2>
 
-                    <div className="space-y-1.5 flex-1 overflow-y-auto">
+                    <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto">
                         {sections.map((section) => (
                             <button
                                 key={section}
@@ -174,16 +174,16 @@ export default function Profile() {
                         ))}
                     </div>
 
-                    <div className="pt-3 border-t border-[#15616d]/30 text-[11px] text-[#7ed9e7] px-2 flex items-center gap-2">
+                    <div className="pt-3 border-t border-[#15616d]/30 text-[11px] text-[#7ed9e7] px-2 flex items-center gap-2 shrink-0">
                         <FileCode size={14} className="text-[#ff7d00]" />
                         <span className="font-semibold">YAML Master Format</span>
                     </div>
                 </aside>
 
                 {/* Main Editor Section */}
-                <section className="flex min-w-0 flex-1 flex-col bg-[#000407]">
+                <section className="flex min-w-0 flex-1 min-h-0 flex-col bg-[#000407]">
                     {/* Editor Toolbar */}
-                    <div className="flex h-16 items-center justify-between border-b border-[#15616d]/50 bg-[#00111d] px-6">
+                    <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#15616d]/50 bg-[#00111d] px-6">
                         <div className="flex items-center gap-3">
                             <div>
                                 <h2 className="text-sm font-extrabold text-white">
@@ -255,21 +255,21 @@ export default function Profile() {
 
                     {/* Alerts */}
                     {error && (
-                        <div className="flex items-center gap-2 border-b border-[#78290f] bg-[#78290f]/30 px-6 py-2.5 text-xs text-[#ee9679] font-medium">
+                        <div className="shrink-0 flex items-center gap-2 border-b border-[#78290f] bg-[#78290f]/30 px-6 py-2.5 text-xs text-[#ee9679] font-medium">
                             <AlertCircle size={14} className="shrink-0 text-[#e66235]" />
                             <span>{error}</span>
                         </div>
                     )}
 
                     {success && (
-                        <div className="flex items-center gap-2 border-b border-[#15616d] bg-[#15616d]/30 px-6 py-2.5 text-xs text-[#3ec5da] font-medium">
+                        <div className="shrink-0 flex items-center gap-2 border-b border-[#15616d] bg-[#15616d]/30 px-6 py-2.5 text-xs text-[#3ec5da] font-medium">
                             <CheckCircle2 size={14} className="shrink-0 text-[#3ec5da]" />
                             <span>{success}</span>
                         </div>
                     )}
 
                     {/* Editor Canvas */}
-                    <div className="flex-1 min-h-[520px] bg-[#000407]">
+                    <div className="flex-1 min-h-0 bg-[#000407]">
                         {loading ? (
                             <div className="flex h-full items-center justify-center p-12 text-xs text-[#bfecf3] gap-2">
                                 <Loader2 size={18} className="animate-spin text-[#ff7d00]" />
@@ -277,7 +277,7 @@ export default function Profile() {
                             </div>
                         ) : (
                             <Editor
-                                height="560px"
+                                height="100%"
                                 language="yaml"
                                 theme="studio-dark"
                                 beforeMount={configureStudioTheme}
