@@ -1,14 +1,15 @@
 import json
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.db.dependencies import get_db
-from backend.services.project_service import ProjectService
-from backend.services.llm_factory import get_llm_status
 from backend.services.agent_service import agent_service
+from backend.services.llm_factory import get_llm_status
+from backend.services.project_service import ProjectService
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ async def get_chat_history(
 
 
 @router.delete("/api/projects/{project_id}/chat/history", status_code=status.HTTP_204_NO_CONTENT)
-def clear_chat_history(
+async def clear_chat_history(
     project_id: str,
     db: Session = Depends(get_db),
 ):
@@ -82,4 +83,4 @@ def clear_chat_history(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    agent_service.clear_history(project_id)
+    await agent_service.clear_history(project_id)

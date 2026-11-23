@@ -16,6 +16,17 @@ if not data_dir.is_absolute():
 data_dir.mkdir(parents=True, exist_ok=True)
 
 DATABASE_PATH = data_dir / "resume_studio.db"
+CHAT_DATABASE_PATH = Path(
+    os.getenv("CHAT_DATABASE_PATH", data_dir / "chat_history.db")
+)
+
+
+def get_chat_database_path() -> Path:
+    env_path = os.getenv("CHAT_DATABASE_PATH")
+    if env_path:
+        return Path(env_path)
+    return CHAT_DATABASE_PATH
+
 
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 

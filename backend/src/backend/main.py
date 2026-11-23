@@ -1,14 +1,15 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend.services.profile_service import ProfileService
-from backend.routers.projects import router as projects_router
 from backend.routers.chat import router as chat_router
-
+from backend.routers.projects import router as projects_router
+from backend.services.agent_service import agent_service
+from backend.services.profile_service import ProfileService
 
 # Resolve the repository root independently of the working directory.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -20,10 +21,18 @@ if not data_dir.is_absolute():
 
 profile_service = ProfileService(data_dir / "profile")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await agent_service.aclose()
+
+
 app = FastAPI(
     title="Resume Studio API",
     description="Backend API for Resume Studio",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

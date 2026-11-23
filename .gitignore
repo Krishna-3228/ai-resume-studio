@@ -19,6 +19,8 @@ dist/
 data/profile/*.yaml
 data/profile/*.yml
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/resume_studio.db
 
 # Generated resume projects

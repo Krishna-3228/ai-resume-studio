@@ -75,6 +75,13 @@ export default function Profile() {
         setSelectedSection(section);
     };
 
+
+    const formatName = (section: string) =>
+        section
+            .split("-")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ");
+
     const handleSave = async () => {
         if (!selectedSection || !isDirty) return;
 
@@ -125,11 +132,6 @@ export default function Profile() {
         };
     }, [isDirty]);
 
-    const formatName = (section: string) =>
-        section
-            .split("-")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(" ");
 
     return (
         <div className="space-y-6">

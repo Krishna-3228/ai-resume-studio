@@ -125,3 +125,36 @@ def test_delete_project_restores_files_on_database_failure(
 
     assert db.get(Project, project.id) is not None
     assert project_dir.exists()
+
+
+def test_delete_project_cleans_up_chat_history(lifecycle, tmp_path):
+    import sqlite3
+    service, db, storage = lifecycle
+
+    chat_db = tmp_path / "test_chat.db"
+    service.chat_db_path = chat_db
+
+    # Create dummy checkpoints and writes tables with rows for project
+    with sqlite3.connect(str(chat_db)) as conn:
+        conn.execute("CREATE TABLE checkpoints (thread_id TEXT, checkpoint_id TEXT)")
+        conn.execute("CREATE TABLE writes (thread_id TEXT, task_id TEXT)")
+
+    project = service.create_project("Chatting Project")
+
+    with sqlite3.connect(str(chat_db)) as conn:
+        conn.execute("INSERT INTO checkpoints VALUES (?, ?)", (project.id, "c1"))
+        conn.execute("INSERT INTO writes VALUES (?, ?)", (project.id, "w1"))
+        conn.execute("INSERT INTO checkpoints VALUES (?, ?)", ("other-project", "c2"))
+        conn.commit()
+
+    service.delete_project(project.id)
+
+    # Verify project's rows were removed, other project intact
+    with sqlite3.connect(str(chat_db)) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) FROM checkpoints WHERE thread_id = ?", (project.id,))
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT count(*) FROM writes WHERE thread_id = ?", (project.id,))
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT count(*) FROM checkpoints WHERE thread_id = ?", ("other-project",))
+        assert cur.fetchone()[0] == 1

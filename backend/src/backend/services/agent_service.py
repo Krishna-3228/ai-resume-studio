@@ -1,8 +1,10 @@
+import asyncio
 import json
 import logging
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
+import aiosqlite
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -11,11 +13,12 @@ from langchain_core.messages import (
     ToolMessage,
 )
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, Field
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.prebuilt import create_react_agent
+from pydantic import BaseModel, Field
 
+from backend.db.session import get_chat_database_path
 from backend.services.llm_factory import create_llm, get_llm_status
 
 logger = logging.getLogger(__name__)
@@ -146,10 +149,75 @@ def _make_prompt_callable(system_prompt: str):
 
 
 class AgentService:
-    def __init__(self):
+    def __init__(self, db_path: Path | str | None = None):
+        self._db_path = Path(db_path) if db_path else None
         self._mcp_client: MultiServerMCPClient | None = None
-        self._checkpointer = InMemorySaver()
         self._tools_cache: list[Any] | None = None
+        self._conn: aiosqlite.Connection | None = None
+        self._checkpointer: AsyncSqliteSaver | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._init_lock: asyncio.Lock | None = None
+        self._current_conn_path: Path | None = None
+
+    @property
+    def db_path(self) -> Path:
+        if self._db_path is not None:
+            return self._db_path
+        return get_chat_database_path()
+
+    async def get_checkpointer(self) -> AsyncSqliteSaver:
+        current_loop = asyncio.get_running_loop()
+        current_path = self.db_path
+
+        if (
+            self._checkpointer is not None
+            and self._conn is not None
+            and self._loop is current_loop
+            and self._current_conn_path == current_path
+        ):
+            return self._checkpointer
+
+        if self._init_lock is None or getattr(self._init_lock, "_loop", None) is not current_loop:
+            self._init_lock = asyncio.Lock()
+
+        async with self._init_lock:
+            if (
+                self._checkpointer is not None
+                and self._conn is not None
+                and self._loop is current_loop
+                and self._current_conn_path == current_path
+            ):
+                return self._checkpointer
+
+            if self._conn is not None:
+                try:
+                    await self._conn.close()
+                except Exception:
+                    pass
+                self._conn = None
+                self._checkpointer = None
+
+            current_path.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = await aiosqlite.connect(str(current_path), timeout=30.0)
+            await self._conn.execute("PRAGMA journal_mode=WAL")
+            await self._conn.execute("PRAGMA busy_timeout=5000")
+            saver = AsyncSqliteSaver(self._conn)
+            await saver.setup()
+            self._checkpointer = saver
+            self._loop = current_loop
+            self._current_conn_path = current_path
+            return self._checkpointer
+
+    async def aclose(self) -> None:
+        if self._conn is not None:
+            try:
+                await self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+            self._checkpointer = None
+            self._current_conn_path = None
+
 
     def _get_mcp_client(self) -> MultiServerMCPClient:
         if self._mcp_client is None:
@@ -226,12 +294,13 @@ class AgentService:
         raw_tools = await self.get_raw_tools()
         tools = [self._wrap_tool_for_project(t, project_id) for t in raw_tools]
         system_prompt = self._get_system_prompt(project_id)
+        checkpointer = await self.get_checkpointer()
 
         agent = create_react_agent(
             model=llm,
             tools=tools,
             prompt=_make_prompt_callable(system_prompt),
-            checkpointer=self._checkpointer,
+            checkpointer=checkpointer,
         )
         return agent
 
@@ -359,10 +428,13 @@ class AgentService:
     async def get_history(self, project_id: str) -> list[dict[str, str]]:
         config = {"configurable": {"thread_id": project_id}}
         try:
-            # We can read messages from checkpointer state
-            agent = await self.get_agent(project_id)
-            state = await agent.aget_state(config)
-            raw_messages = state.values.get("messages", []) if state else []
+            checkpointer = await self.get_checkpointer()
+            checkpoint_tuple = await checkpointer.aget_tuple(config)
+            if not checkpoint_tuple:
+                return []
+            checkpoint = checkpoint_tuple.checkpoint
+            channel_values = checkpoint.get("channel_values", {})
+            raw_messages = channel_values.get("messages", [])
             history = []
             for msg in raw_messages:
                 if isinstance(msg, HumanMessage):
@@ -375,16 +447,16 @@ class AgentService:
                     if text and text.strip():
                         history.append({"role": "assistant", "content": text})
             return history
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to retrieve chat history for project %s: %s", project_id, exc)
             return []
 
-    def clear_history(self, project_id: str) -> None:
-        # Reset checkpointer state for thread_id
-        # In InMemorySaver, checkpoints are stored in self._checkpointer.storage[thread_id]
-        if hasattr(self._checkpointer, "storage"):
-            self._checkpointer.storage.pop(project_id, None)
-        elif hasattr(self._checkpointer, "checkpoints"):
-            self._checkpointer.checkpoints.pop(project_id, None)
+    async def clear_history(self, project_id: str) -> None:
+        try:
+            checkpointer = await self.get_checkpointer()
+            await checkpointer.adelete_thread(str(project_id))
+        except Exception as exc:
+            logger.warning("Failed to clear chat history for project %s: %s", project_id, exc)
 
 
 agent_service = AgentService()

@@ -17,7 +17,10 @@ def storage(tmp_path):
 
 
 @pytest.fixture
-def client(storage):
+def client(storage, tmp_path, monkeypatch):
+    test_chat_db = tmp_path / "chat_history.db"
+    monkeypatch.setenv("CHAT_DATABASE_PATH", str(test_chat_db))
+
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},

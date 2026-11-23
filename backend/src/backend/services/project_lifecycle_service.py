@@ -1,13 +1,25 @@
+import logging
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from backend.models import Project
 from backend.services.project_storage import ProjectStorage
+from backend.services.chat_history import delete_chat_history_sync
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectLifecycleService:
-    def __init__(self, db: Session, storage: ProjectStorage):
+    def __init__(
+        self,
+        db: Session,
+        storage: ProjectStorage,
+        chat_db_path: Path | None = None,
+    ):
         self.db = db
         self.storage = storage
+        self.chat_db_path = chat_db_path
+
 
     def create_project(
         self,
@@ -71,10 +83,11 @@ class ProjectLifecycleService:
             try:
                 self.storage.finalize_project_deletion(tombstone_dir)
             except OSError:
-                import logging
-                logging.exception(
+                logger.exception(
                     "Could not remove project directory: %s",
                     project_id,
                 )
+
+        delete_chat_history_sync(project_id, db_path=self.chat_db_path)
 
         return True

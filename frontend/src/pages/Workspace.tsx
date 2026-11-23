@@ -4,7 +4,7 @@ import Editor from "@monaco-editor/react";
 import { projectService, type Project } from "../services/projectService";
 import { chatService, streamChat, type ChatMessage, type ChatStatus } from "../services/chatService";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { Sparkles, Send, Trash2, Wrench, AlertCircle, Bot, User, ArrowLeft, Download, Save, Play, Loader2 } from "lucide-react";
+import { Sparkles, Send, Trash2, Wrench, AlertCircle, Bot, User, ArrowLeft, Download, Save, Play, Loader2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import axios from "axios";
@@ -68,7 +68,10 @@ function Workspace() {
     const [inputMessage, setInputMessage] = useState("");
     const [isChatThinking, setIsChatThinking] = useState(false);
     const [activeTool, setActiveTool] = useState<string | null>(null);
+    const [showClearChatModal, setShowClearChatModal] = useState(false);
+    const [clearingChat, setClearingChat] = useState(false);
     const chatScrollRef = useRef<HTMLDivElement | null>(null);
+    const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
 
     const editorRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
@@ -185,6 +188,9 @@ function Workspace() {
         if (!query || !projectId || isChatThinking) return;
 
         setInputMessage("");
+        if (chatInputRef.current) {
+            chatInputRef.current.style.height = "auto";
+        }
         const userMsgId = `user-${crypto.randomUUID()}`;
         const assistantMsgId = `assistant-${crypto.randomUUID()}`;
 
@@ -273,12 +279,16 @@ function Workspace() {
     const handleClearChat = async () => {
         if (!projectId) return;
         try {
+            setClearingChat(true);
             await chatService.clearHistory(projectId);
             setChatMessages([]);
+            setShowClearChatModal(false);
             toast.deleted("Chat History", "AI conversation history has been cleared.");
         } catch (err) {
             console.error("Failed to clear chat:", err);
             toast.error("Clear Failed", "Failed to clear conversation history.");
+        } finally {
+            setClearingChat(false);
         }
     };
 
@@ -720,9 +730,9 @@ function Workspace() {
 
                                         {chatMessages.length > 0 && (
                                             <button
-                                                onClick={handleClearChat}
+                                                onClick={() => setShowClearChatModal(true)}
                                                 title="Clear conversation"
-                                                className="text-[#bfecf3] hover:text-white transition-colors p-1 rounded-lg hover:bg-[#001524]"
+                                                className="text-[#bfecf3] hover:text-[#ee9679] transition-colors p-1.5 rounded-lg hover:bg-[#78290f]/20 cursor-pointer"
                                             >
                                                 <Trash2 size={13} />
                                             </button>
@@ -880,18 +890,34 @@ function Workspace() {
                                                 e.preventDefault();
                                                 handleSendMessage();
                                             }}
-                                            className="flex gap-2"
+                                            className="flex items-end gap-2"
                                         >
-                                            <input
+                                            <textarea
+                                                ref={chatInputRef}
+                                                rows={1}
                                                 value={inputMessage}
-                                                onChange={(e) => setInputMessage(e.target.value)}
+                                                onChange={(e) => {
+                                                    setInputMessage(e.target.value);
+                                                    if (chatInputRef.current) {
+                                                        chatInputRef.current.style.height = "auto";
+                                                        chatInputRef.current.style.height = `${Math.min(chatInputRef.current.scrollHeight, 160)}px`;
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        if (inputMessage.trim() && !isChatThinking && (!chatStatus || chatStatus.configured)) {
+                                                            handleSendMessage();
+                                                        }
+                                                    }
+                                                }}
                                                 disabled={isChatThinking || (chatStatus !== null && !chatStatus.configured)}
                                                 placeholder={
                                                     chatStatus?.configured
-                                                        ? "Ask AI to edit, format, or improve your resume..."
+                                                        ? "Ask AI to edit, format, or improve your resume... (Shift+Enter for newline)"
                                                         : "Configure API key in .env to chat..."
                                                 }
-                                                className="flex-1 rounded-xl border border-[#15616d] bg-[#000c15] px-3.5 py-2 text-xs text-[#ffecd1] placeholder-[#7ed9e7]/50 outline-none focus:border-[#ff7d00] focus:ring-1 focus:ring-[#ff7d00]/30 disabled:opacity-50 transition-all font-medium"
+                                                className="flex-1 resize-none overflow-y-auto min-h-[38px] max-h-[160px] rounded-xl border border-[#15616d] bg-[#000c15] px-3.5 py-2 text-xs text-[#ffecd1] placeholder-[#7ed9e7]/50 outline-none focus:border-[#ff7d00] focus:ring-1 focus:ring-[#ff7d00]/30 disabled:opacity-50 transition-all font-medium leading-relaxed"
                                             />
                                             <button
                                                 type="submit"
@@ -900,9 +926,10 @@ function Workspace() {
                                                     isChatThinking ||
                                                     (chatStatus !== null && !chatStatus.configured)
                                                 }
-                                                className="rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] px-4 py-2 text-xs font-bold text-[#000407] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md shadow-[#ff7d00]/25 active:scale-95"
+                                                className="h-[38px] w-[38px] shrink-0 rounded-xl bg-[#ff7d00] hover:bg-[#ff9633] text-xs font-bold text-[#000407] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center cursor-pointer shadow-md shadow-[#ff7d00]/25 active:scale-95"
+                                                title="Send (Enter)"
                                             >
-                                                <Send size={13} className="stroke-[2.5]" />
+                                                <Send size={14} className="stroke-[2.5]" />
                                             </button>
                                         </form>
                                     </div>
@@ -912,6 +939,79 @@ function Workspace() {
                     </Panel>
                 </Group>
             </main>
+
+            {/* Clear Chat Confirmation Modal */}
+            {showClearChatModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200"
+                    onClick={() => {
+                        if (!clearingChat) setShowClearChatModal(false);
+                    }}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl border-2 border-[#78290f] bg-[#000c15] p-6 shadow-2xl text-white"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between pb-3 border-b border-[#15616d]/40">
+                            <div className="flex items-center gap-3 text-[#ee9679]">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#78290f]/30 border border-[#78290f]">
+                                    <Trash2 size={20} />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-extrabold text-white">
+                                        Clear Chat History?
+                                    </h2>
+                                    <p className="text-[11px] text-[#bfecf3]">
+                                        Reset AI context window
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={clearingChat}
+                                onClick={() => setShowClearChatModal(false)}
+                                className="rounded-lg p-1.5 text-[#bfecf3] hover:bg-[#001524] hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <p className="mt-4 text-xs leading-5 text-[#ffecd1]">
+                            Are you sure you want to permanently clear the AI conversation history for{" "}
+                            <strong className="text-white font-bold">{project?.title || "this project"}</strong>?
+                            This will erase all past prompts and assistant replies, resetting the AI assistant&apos;s context window.{" "}
+                            <span className="text-[#ee9679] font-bold">This action cannot be undone.</span>
+                        </p>
+
+                        <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-[#15616d]/40">
+                            <button
+                                type="button"
+                                disabled={clearingChat}
+                                onClick={() => setShowClearChatModal(false)}
+                                className="rounded-xl border border-[#15616d] px-4 py-2 text-xs font-bold text-[#bfecf3] hover:bg-[#001524] hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={clearingChat}
+                                onClick={handleClearChat}
+                                className="flex items-center gap-1.5 rounded-xl bg-[#b93f17] hover:bg-[#e66235] px-5 py-2 text-xs font-bold text-white shadow-md shadow-[#b93f17]/25 transition-all disabled:opacity-50 cursor-pointer"
+                            >
+                                {clearingChat ? (
+                                    <>
+                                        <Loader2 size={13} className="animate-spin" />
+                                        <span>Clearing...</span>
+                                    </>
+                                ) : (
+                                    <span>Delete Chat History</span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
