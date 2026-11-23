@@ -4,7 +4,7 @@ import Editor from "@monaco-editor/react";
 import { projectService, type Project } from "../services/projectService";
 import { chatService, streamChat, type ChatMessage, type ChatStatus } from "../services/chatService";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { Sparkles, Send, Trash2, Wrench, AlertCircle, Bot, User, ArrowLeft, Download, Save, Play, Loader2, X } from "lucide-react";
+import { Sparkles, Send, Trash2, Wrench, AlertCircle, Bot, User, ArrowLeft, Download, Save, Play, Loader2, X, Copy } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import axios from "axios";
@@ -61,6 +61,7 @@ function Workspace() {
     const [diagnostics, setDiagnostics] = useState<CompilationDiagnostic[]>([]);
     const [isAiWriting, setIsAiWriting] = useState(false);
     const [pdfKey, setPdfKey] = useState(0);
+    const [duplicating, setDuplicating] = useState(false);
 
     // AI Chat state
     const [chatStatus, setChatStatus] = useState<ChatStatus | null>(null);
@@ -311,6 +312,25 @@ function Workspace() {
         }
     };
 
+    const handleDuplicate = async () => {
+        if (!projectId || !project) return;
+
+        try {
+            setDuplicating(true);
+            if (isDirty) {
+                await projectService.saveLatex(projectId, latex);
+                setSavedLatex(latex);
+            }
+            const duplicated = await projectService.duplicateProject(projectId);
+            toast.created("Project", `"${project.title}" duplicated successfully.`);
+            navigate(`/projects/${duplicated.id}`);
+        } catch {
+            toast.error("Duplicate Failed", "Unable to duplicate project. Please try again.");
+        } finally {
+            setDuplicating(false);
+        }
+    };
+
     // Keyboard shortcut for Ctrl+S / Cmd+S
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -510,6 +530,25 @@ function Workspace() {
                     >
                         <Download size={13} />
                         <span>Download PDF</span>
+                    </button>
+
+                    <button
+                        onClick={handleDuplicate}
+                        disabled={duplicating || loading || saving || isAiWriting}
+                        className="flex items-center gap-1.5 rounded-xl border border-[#15616d] bg-[#000c15] px-3.5 py-1.5 text-xs font-bold text-[#bfecf3] hover:bg-[#001524] hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                        title="Duplicate this project"
+                    >
+                        {duplicating ? (
+                            <>
+                                <Loader2 size={13} className="animate-spin text-[#ff7d00]" />
+                                <span>Duplicating...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Copy size={13} />
+                                <span>Duplicate</span>
+                            </>
+                        )}
                     </button>
 
                     <button

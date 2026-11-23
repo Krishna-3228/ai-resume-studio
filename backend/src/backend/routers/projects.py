@@ -67,6 +67,26 @@ def get_project(
     return project
 
 
+@router.post(
+    "/{project_id}/duplicate",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def duplicate_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    storage: ProjectStorage = Depends(get_project_storage),
+):
+    service = ProjectLifecycleService(db, storage)
+
+    try:
+        return service.duplicate_project(project_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
 @router.patch("/{project_id}", response_model=ProjectResponse)
 def update_project(
     project_id: str,

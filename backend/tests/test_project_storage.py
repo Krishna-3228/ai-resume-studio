@@ -58,3 +58,26 @@ def test_delete_project_files(storage):
 def test_invalid_project_id(storage):
     with pytest.raises(ValueError):
         storage.create_project_files("../../somewhere")
+
+
+def test_copy_project_files(storage):
+    source_id = str(uuid4())
+    target_id = str(uuid4())
+
+    storage.create_project_files(source_id)
+    storage.write_latex(source_id, r"\documentclass{article}\begin{document}Original\end{document}")
+    (storage.get_pdf_path(source_id)).write_bytes(b"%PDF-1.4 sample pdf content")
+    # Add a lock file in source dir which should NOT be copied
+    (storage._get_project_dir(source_id) / ".resume.lock").touch()
+
+    target_dir = storage.copy_project_files(source_id, target_id)
+
+    assert target_dir.exists()
+    assert storage.read_latex(target_id) == r"\documentclass{article}\begin{document}Original\end{document}"
+    assert storage.get_pdf_path(target_id).read_bytes() == b"%PDF-1.4 sample pdf content"
+    assert not (target_dir / ".resume.lock").exists()
+
+
+def test_copy_project_files_missing_source(storage):
+    with pytest.raises(FileNotFoundError):
+        storage.copy_project_files(str(uuid4()), str(uuid4()))

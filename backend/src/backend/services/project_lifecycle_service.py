@@ -62,6 +62,46 @@ class ProjectLifecycleService:
 
             raise
 
+    def duplicate_project(self, project_id: str) -> Project:
+        source_project = self.db.get(Project, project_id)
+
+        if source_project is None:
+            raise FileNotFoundError("Project not found")
+
+        duplicate = Project(
+            title=source_project.title,
+            description=source_project.description,
+            status=source_project.status,
+        )
+
+        project_files_created = False
+
+        try:
+            self.db.add(duplicate)
+
+            # Generate the new project ID without committing yet.
+            self.db.flush()
+
+            # Copy project files (resume.tex, resume.pdf) to new directory.
+            self.storage.copy_project_files(source_project.id, duplicate.id)
+            project_files_created = True
+
+            # Ensure new project starts with clean chat history.
+            delete_chat_history_sync(duplicate.id, db_path=self.chat_db_path)
+
+            self.db.commit()
+            self.db.refresh(duplicate)
+
+            return duplicate
+
+        except Exception:
+            self.db.rollback()
+
+            if project_files_created:
+                self.storage.delete_project_files(duplicate.id)
+
+            raise
+
     def delete_project(self, project_id: str) -> bool:
         project = self.db.get(Project, project_id)
 

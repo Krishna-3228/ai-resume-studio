@@ -56,6 +56,11 @@ export const projectService = {
         await api.delete(`/projects/${projectId}`);
     },
 
+    async duplicateProject(projectId: string): Promise<Project> {
+        const response = await api.post(`/projects/${projectId}/duplicate`);
+        return response.data;
+    },
+
     async getLatex(projectId: string): Promise<LatexDocument> {
         const response = await api.get(`/projects/${projectId}/latex`);
         return response.data;

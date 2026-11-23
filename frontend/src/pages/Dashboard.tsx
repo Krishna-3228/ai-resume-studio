@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Loader2, Search, Plus, X, MoreVertical, Trash2, Edit3, ArrowRight } from "lucide-react";
+import { FileText, Loader2, Search, Plus, X, MoreVertical, Trash2, Edit3, ArrowRight, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -32,6 +32,8 @@ export default function Dashboard() {
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
+
+    const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
     useEffect(() => {
         loadProjects();
@@ -180,6 +182,21 @@ export default function Dashboard() {
             toast.error("Delete Failed", "Unable to delete project. Please try again.");
         } finally {
             setDeleting(false);
+        }
+    }
+
+    async function handleDuplicateProject(project: Project) {
+        try {
+            setDuplicatingId(project.id);
+            setActiveMenu(null);
+
+            const duplicated = await projectService.duplicateProject(project.id);
+            setProjects((previous) => [duplicated, ...previous]);
+            toast.created("Project", `"${project.title}" duplicated successfully.`);
+        } catch {
+            toast.error("Duplicate Failed", "Unable to duplicate project. Please try again.");
+        } finally {
+            setDuplicatingId(null);
         }
     }
 
@@ -365,6 +382,19 @@ export default function Dashboard() {
                                                         >
                                                             <FileText size={14} className="text-[#ff7d00]" />
                                                             <span>Edit Description</span>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleDuplicateProject(project)}
+                                                            disabled={duplicatingId === project.id}
+                                                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[#ffecd1] hover:bg-[#001524] hover:text-[#ff7d00] transition-colors disabled:opacity-50"
+                                                        >
+                                                            {duplicatingId === project.id ? (
+                                                                <Loader2 size={14} className="animate-spin text-[#ff7d00]" />
+                                                            ) : (
+                                                                <Copy size={14} className="text-[#ff7d00]" />
+                                                            )}
+                                                            <span>Duplicate Project</span>
                                                         </button>
 
                                                         <div className="my-1 border-t border-[#15616d]/40" />

@@ -158,3 +158,69 @@ def test_delete_project_cleans_up_chat_history(lifecycle, tmp_path):
         assert cur.fetchone()[0] == 0
         cur.execute("SELECT count(*) FROM checkpoints WHERE thread_id = ?", ("other-project",))
         assert cur.fetchone()[0] == 1
+
+
+def test_duplicate_project(lifecycle):
+    service, db, storage = lifecycle
+
+    source = service.create_project(
+        "Software Engineer Resume",
+        "Backend development roles",
+    )
+    storage.write_latex(source.id, r"\documentclass{article}\begin{document}Original LaTeX\end{document}")
+    (storage.get_pdf_path(source.id)).write_bytes(b"%PDF-1.4 compiled content")
+
+    duplicate = service.duplicate_project(source.id)
+
+    assert duplicate.id != source.id
+    # Name and description copied as it is
+    assert duplicate.title == source.title
+    assert duplicate.description == source.description
+    assert duplicate.status == source.status
+
+    # LaTeX and resume PDF copied
+    assert storage.read_latex(duplicate.id) == r"\documentclass{article}\begin{document}Original LaTeX\end{document}"
+    assert storage.get_pdf_path(duplicate.id).read_bytes() == b"%PDF-1.4 compiled content"
+
+    # Both projects exist in database
+    assert db.get(Project, source.id) is not None
+    assert db.get(Project, duplicate.id) is not None
+
+
+def test_duplicate_project_without_description(lifecycle):
+    service, db, storage = lifecycle
+
+    source = service.create_project("Minimal Resume")
+    duplicate = service.duplicate_project(source.id)
+
+    assert duplicate.id != source.id
+    assert duplicate.title == "Minimal Resume"
+    assert duplicate.description is None
+    assert storage.get_latex_path(duplicate.id).exists()
+
+
+def test_duplicate_nonexistent_project(lifecycle):
+    service, db, storage = lifecycle
+
+    with pytest.raises(FileNotFoundError):
+        service.duplicate_project(str(uuid4()))
+
+
+def test_duplicate_filesystem_failure_rolls_back_database(lifecycle, monkeypatch):
+    service, db, storage = lifecycle
+
+    source = service.create_project("Failing Duplicate")
+
+    def fail_copy(source_id, target_id):
+        raise OSError("Simulated copy failure")
+
+    monkeypatch.setattr(storage, "copy_project_files", fail_copy)
+
+    with pytest.raises(OSError):
+        service.duplicate_project(source.id)
+
+    # Only original project exists in database
+    projects = db.scalars(select(Project)).all()
+    assert len(projects) == 1
+    assert projects[0].id == source.id
+

@@ -70,6 +70,50 @@ def test_get_nonexistent_project(client):
     assert response.status_code == 404
 
 
+def test_duplicate_project(client, storage):
+    created = client.post(
+        "/api/projects",
+        json={
+            "title": "Staff Engineer Resume",
+            "description": "Tech lead roles",
+        },
+    ).json()
+
+    source_id = created["id"]
+    latex_content = r"\documentclass{article}\begin{document}Staff Engineer\end{document}"
+    client.put(f"/api/projects/{source_id}/latex", json={"content": latex_content})
+    (storage.get_pdf_path(source_id)).write_bytes(b"%PDF-1.4 test resume pdf")
+
+    response = client.post(f"/api/projects/{source_id}/duplicate")
+
+    assert response.status_code == 201
+
+    data = response.json()
+    assert data["id"] != source_id
+    assert data["title"] == "Staff Engineer Resume"
+    assert data["description"] == "Tech lead roles"
+    assert data["status"] == "draft"
+
+    # Verify latex was copied
+    latex_resp = client.get(f"/api/projects/{data['id']}/latex")
+    assert latex_resp.status_code == 200
+    assert latex_resp.json()["content"] == latex_content
+
+    # Verify resume PDF was copied
+    pdf_resp = client.get(f"/api/projects/{data['id']}/pdf")
+    assert pdf_resp.status_code == 200
+    assert pdf_resp.content == b"%PDF-1.4 test resume pdf"
+
+
+def test_duplicate_nonexistent_project(client):
+    response = client.post("/api/projects/00000000-0000-0000-0000-000000000000/duplicate")
+    assert response.status_code == 404
+
+    response_invalid = client.post("/api/projects/invalid-id/duplicate")
+    assert response_invalid.status_code == 404
+
+
+
 def test_update_project(client):
     created = client.post(
         "/api/projects",

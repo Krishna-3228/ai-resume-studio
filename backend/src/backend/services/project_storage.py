@@ -29,6 +29,32 @@ class ProjectStorage:
 
         return project_dir
 
+    def copy_project_files(self, source_project_id: str, target_project_id: str) -> Path:
+        source_dir = self._get_project_dir(source_project_id)
+
+        if not source_dir.is_dir():
+            raise FileNotFoundError("Source project directory not found")
+
+        target_dir = self._get_project_dir(target_project_id)
+        target_dir.mkdir(parents=True, exist_ok=False)
+
+        try:
+            for item in source_dir.iterdir():
+                if item.name.startswith(".") or item.name.endswith(".lock"):
+                    continue
+                if item.is_file():
+                    shutil.copy2(item, target_dir / item.name)
+
+            target_latex = target_dir / "resume.tex"
+            if not target_latex.exists():
+                target_latex.touch()
+
+            return target_dir
+        except Exception:
+            if target_dir.exists():
+                shutil.rmtree(target_dir, ignore_errors=True)
+            raise
+
     def get_latex_path(self, project_id: str) -> Path:
         return self._get_project_dir(project_id) / "resume.tex"
 

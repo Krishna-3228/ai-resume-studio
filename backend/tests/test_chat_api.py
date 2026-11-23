@@ -157,3 +157,40 @@ def test_chat_nonexistent_project(client):
         json={"message": "hello"},
     )
     assert response.status_code == 404
+
+
+def test_duplicate_project_does_not_copy_chat_history(client):
+    created = client.post(
+        "/api/projects",
+        json={"title": "Chat Seeded Project", "description": "Original desc"},
+    ).json()
+    project_id = created["id"]
+
+    # Seed chat messages for the project
+    async def seed():
+        saver = await agent_service.get_checkpointer()
+        llm = FakeListChatModel(responses=["Assistant response for original"])
+        agent = create_react_agent(llm, tools=[], checkpointer=saver)
+        config = {"configurable": {"thread_id": project_id}}
+        await agent.ainvoke({"messages": [HumanMessage(content="User prompt for original")]}, config=config)
+
+    asyncio.run(seed())
+
+    # Verify original has chat history
+    original_history = client.get(f"/api/projects/{project_id}/chat/history").json()
+    assert len(original_history["messages"]) == 2
+    assert original_history["messages"][0]["content"] == "User prompt for original"
+
+    # Duplicate project
+    dup_resp = client.post(f"/api/projects/{project_id}/duplicate")
+    assert dup_resp.status_code == 201
+    dup_id = dup_resp.json()["id"]
+
+    # Check duplicated project's chat history is EMPTY
+    dup_history = client.get(f"/api/projects/{dup_id}/chat/history").json()
+    assert dup_history == {"messages": []}
+
+    # Verify original project still has its chat history intact
+    original_history_after = client.get(f"/api/projects/{project_id}/chat/history").json()
+    assert len(original_history_after["messages"]) == 2
+
