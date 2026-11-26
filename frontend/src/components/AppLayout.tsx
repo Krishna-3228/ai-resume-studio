@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, UserRound, FileText } from "lucide-react";
+import { LayoutDashboard, UserRound } from "lucide-react";
+import logoImg from "../assets/logo.jpeg";
 
 const navigation = [
   {
@@ -24,8 +25,8 @@ export default function AppLayout() {
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between border-b border-[#15616d]/30 px-6 bg-[#000407]">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ff7d00]/15 border border-[#ff7d00]/40 text-[#ff7d00] shadow-sm shadow-[#ff7d00]/20">
-              <FileText className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-[#ff7d00]/40 shadow-sm shadow-[#ff7d00]/20 bg-[#001524]">
+              <img src={logoImg} alt="AI Resume Studio Logo" className="h-full w-full object-cover" />
             </div>
             <div>
               <span className="text-base font-bold tracking-tight text-white block leading-none">
