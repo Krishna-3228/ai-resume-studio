@@ -322,7 +322,7 @@ function Workspace() {
                 setSavedLatex(latex);
             }
             const duplicated = await projectService.duplicateProject(projectId);
-            toast.created("Project", `"${project.title}" duplicated successfully.`);
+            toast.created("Project", `"${duplicated.title}" duplicated successfully.`);
             navigate(`/projects/${duplicated.id}`);
         } catch {
             toast.error("Duplicate Failed", "Unable to duplicate project. Please try again.");

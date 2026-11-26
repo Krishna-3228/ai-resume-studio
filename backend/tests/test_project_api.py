@@ -90,7 +90,7 @@ def test_duplicate_project(client, storage):
 
     data = response.json()
     assert data["id"] != source_id
-    assert data["title"] == "Staff Engineer Resume"
+    assert data["title"] == "Staff Engineer Resume (copy)"
     assert data["description"] == "Tech lead roles"
     assert data["status"] == "draft"
 

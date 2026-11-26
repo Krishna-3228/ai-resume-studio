@@ -192,7 +192,7 @@ export default function Dashboard() {
 
             const duplicated = await projectService.duplicateProject(project.id);
             setProjects((previous) => [duplicated, ...previous]);
-            toast.created("Project", `"${project.title}" duplicated successfully.`);
+            toast.created("Project", `"${duplicated.title}" duplicated successfully.`);
         } catch {
             toast.error("Duplicate Failed", "Unable to duplicate project. Please try again.");
         } finally {

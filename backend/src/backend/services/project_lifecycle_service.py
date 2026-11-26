@@ -68,8 +68,12 @@ class ProjectLifecycleService:
         if source_project is None:
             raise FileNotFoundError("Project not found")
 
+        title = f"{source_project.title} (copy)"
+        if len(title) > 200:
+            title = f"{source_project.title[:200 - len(' (copy)')]} (copy)"
+
         duplicate = Project(
-            title=source_project.title,
+            title=title,
             description=source_project.description,
             status=source_project.status,
         )

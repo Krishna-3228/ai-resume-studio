@@ -173,8 +173,8 @@ def test_duplicate_project(lifecycle):
     duplicate = service.duplicate_project(source.id)
 
     assert duplicate.id != source.id
-    # Name and description copied as it is
-    assert duplicate.title == source.title
+    # Name appended with (copy) and description copied as it is
+    assert duplicate.title == "Software Engineer Resume (copy)"
     assert duplicate.description == source.description
     assert duplicate.status == source.status
 
@@ -194,9 +194,20 @@ def test_duplicate_project_without_description(lifecycle):
     duplicate = service.duplicate_project(source.id)
 
     assert duplicate.id != source.id
-    assert duplicate.title == "Minimal Resume"
+    assert duplicate.title == "Minimal Resume (copy)"
     assert duplicate.description is None
     assert storage.get_latex_path(duplicate.id).exists()
+
+
+def test_duplicate_project_long_title_capped(lifecycle):
+    service, db, storage = lifecycle
+
+    long_title = "A" * 200
+    source = service.create_project(long_title)
+    duplicate = service.duplicate_project(source.id)
+
+    assert len(duplicate.title) <= 200
+    assert duplicate.title.endswith(" (copy)")
 
 
 def test_duplicate_nonexistent_project(lifecycle):
