@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,10 +7,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from backend.db.seed import seed_all
 from backend.routers.chat import router as chat_router
 from backend.routers.projects import router as projects_router
 from backend.services.agent_service import agent_service
 from backend.services.profile_service import ProfileService
+
+logger = logging.getLogger(__name__)
 
 # Resolve the repository root independently of the working directory.
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -24,6 +28,17 @@ profile_service = ProfileService(data_dir / "profile")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Automatically seed necessary files, directories, database schema, and templates on startup
+    is_testing = bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING"))
+    try:
+        seed_all(
+            data_dir=data_dir,
+            repo_root=REPO_ROOT,
+            seed_project=not is_testing,
+        )
+    except Exception as exc:
+        logger.warning("Automatic first-run seeding encountered an issue: %s", exc)
+
     yield
     await agent_service.aclose()
 

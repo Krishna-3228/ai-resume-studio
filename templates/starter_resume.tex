@@ -1,0 +1,73 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+}
+
+\setlist[itemize]{noitemsep, topsep=2pt, leftmargin=1.5em}
+\titleformat{\section}{\large\bfseries}{}{0em}{}[\titlerule]
+\titlespacing*{\section}{0pt}{10pt}{6pt}
+
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{center}
+    {\LARGE \textbf{Alex Morgan}} \\ \vspace{4pt}
+    San Francisco, CA \ \textbullet\ \href{mailto:alex.morgan@example.com}{alex.morgan@example.com} \ \textbullet\ (555) 123-4567 \\
+    \href{https://github.com/alexmorgan}{github.com/alexmorgan} \ \textbullet\ \href{https://linkedin.com/in/alexmorgan}{linkedin.com/in/alexmorgan}
+\end{center}
+
+\section*{Summary}
+Results-driven Software Engineer with expertise in building scalable web applications, RESTful APIs, and cloud services using modern technologies. Passionate about clean architecture, developer productivity, and AI-assisted workflows.
+
+\section*{Technical Skills}
+\begin{itemize}
+    \item \textbf{Languages:} Python, TypeScript, JavaScript, Go, SQL, HTML/CSS
+    \item \textbf{Frameworks \& Libraries:} FastAPI, React, Node.js, Next.js, Express, Tailwind CSS
+    \item \textbf{Databases \& Caching:} PostgreSQL, SQLite, Redis, MongoDB
+    \item \textbf{DevOps \& Tools:} Docker, Git, GitHub Actions, Linux, LaTeX, AWS (EC2, S3)
+\end{itemize}
+
+\section*{Professional Experience}
+\textbf{Senior Software Engineer} \hfill Jan 2024 -- Present \\
+\textit{CloudScale Innovations} \hfill San Francisco, CA
+\begin{itemize}
+    \item Architected and launched high-throughput REST APIs serving over 50,000 daily active users with sub-50ms latency.
+    \item Led migration from monolithic backend to containerized microservices using Docker and FastAPI.
+    \item Reduced CI/CD build and deployment cycle times by 40\% through parallel testing and optimized Docker multi-stage builds.
+\end{itemize}
+
+\vspace{4pt}
+\textbf{Software Engineer} \hfill Jun 2021 -- Dec 2023 \\
+\textit{NextGen Web Labs} \hfill Austin, TX
+\begin{itemize}
+    \item Developed full-stack dashboard features using React, TypeScript, and Python.
+    \item Integrated real-time event streaming via Server-Sent Events (SSE) and WebSockets.
+    \item Improved database query performance by 35\% by indexing frequently filtered attributes.
+\end{itemize}
+
+\section*{Projects}
+\textbf{AI Resume Studio} \hfill \textit{Python, FastAPI, React, TypeScript, LaTeX}
+\begin{itemize}
+    \item Built an interactive LaTeX resume editor with real-time compilation, live PDF preview, and AI agent integration.
+    \item Implemented atomic document storage, project duplication, and persistent profile synchronization.
+\end{itemize}
+
+\vspace{4pt}
+\textbf{Distributed Task Orchestrator} \hfill \textit{Go, Redis, Docker}
+\begin{itemize}
+    \item Engineered an asynchronous job queue processing concurrent background tasks with failure recovery and retries.
+\end{itemize}
+
+\section*{Education}
+\textbf{Bachelor of Science in Computer Science} \hfill 2017 -- 2021 \\
+State University \hfill GPA: 3.8 / 4.0
+
+\end{document}

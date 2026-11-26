@@ -1,0 +1,17 @@
+experience:
+  - role: Software Engineer
+    company: Tech Innovations Corp
+    location: San Francisco, CA
+    period: 2024 - Present
+    highlights:
+      - Developed and maintained RESTful APIs using Python and FastAPI.
+      - Built interactive frontend components in React and TypeScript.
+      - Collaborated on database schema design and optimization.
+
+  - role: Software Engineer Intern
+    company: Digital Solutions Studio
+    location: Remote
+    period: 2023 - 2024
+    highlights:
+      - Implemented automated CI/CD pipelines using GitHub Actions and Docker.
+      - Designed modular UI components improving page load performance.

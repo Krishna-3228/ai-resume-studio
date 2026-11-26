@@ -1,0 +1,26 @@
+languages:
+  - Python
+  - TypeScript
+  - JavaScript
+  - Go
+  - SQL
+
+frameworks:
+  - FastAPI
+  - React
+  - Node.js
+  - Next.js
+  - Express
+
+databases:
+  - PostgreSQL
+  - SQLite
+  - Redis
+  - MongoDB
+
+tools:
+  - Docker
+  - Git
+  - GitHub Actions
+  - Linux
+  - LaTeX

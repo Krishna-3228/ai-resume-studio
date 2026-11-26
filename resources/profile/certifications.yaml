@@ -1,0 +1,14 @@
+certifications:
+  - name: AWS Certified Solutions Architect
+    provider: Amazon Web Services
+    certificate_link: https://aws.amazon.com/certification
+    tags:
+      - Cloud Computing
+      - AWS
+      - Architecture
+
+  - name: Professional Scrum Master
+    provider: Scrum.org
+    tags:
+      - Agile
+      - Scrum

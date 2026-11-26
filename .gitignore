@@ -37,9 +37,13 @@ data/locks/*
 *.fdb_latexmk
 *.synctex.gz
 *.tex
+!resources/**/*.tex
+!templates/**/*.tex
 
 # Generated PDFs
 *.pdf
+!resources/**/*.pdf
+!templates/**/*.pdf
 
 # IDE
 .idea/

@@ -1,0 +1,22 @@
+projects:
+  - name: AI Resume Studio
+    tech_stack:
+      - Python
+      - FastAPI
+      - React
+      - TypeScript
+      - LaTeX
+    github_link: https://github.com/example/ai-resume-studio
+    live_demo_link: https://resume-studio.example.com
+    description:
+      - Built an interactive LaTeX resume editor with real-time compilation and AI assistance.
+      - Implemented atomic document storage, project duplication, and persistent profile synchronization.
+
+  - name: Distributed Task Orchestrator
+    tech_stack:
+      - Python
+      - Redis
+      - Docker
+    github_link: https://github.com/example/task-orchestrator
+    description:
+      - Engineered an asynchronous job queue processing concurrent background tasks with failure recovery.

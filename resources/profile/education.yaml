@@ -1,0 +1,13 @@
+education:
+  - type: graduation
+    institution: ABC University
+    address: San Francisco, CA
+    degree: B.S. in Computer Science
+    batch: 2020-2024
+    cgpa: 3.8/4.0
+
+  - type: high_school
+    institution: Central High School
+    address: San Francisco, CA
+    batch: 2020
+    percentage: 95%
